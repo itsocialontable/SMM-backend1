@@ -75,9 +75,20 @@ const postSchema = new mongoose.Schema(
         status:   String,
         postId:   String,
         error:    String,
-        url:      String
+        url:      String,
+
+        // ---- v20: per-platform real analytics (Facebook/Instagram/YouTube) ----
+        analytics: {
+          likes:    { type: Number, default: 0 },
+          comments: { type: Number, default: 0 },
+          shares:   { type: Number, default: 0 },
+          views:    { type: Number, default: 0 }
+        }
       }
     ],
+
+    // v20: analytics sync job ne last baar kab real data refresh kiya
+    lastAnalyticsSyncAt: { type: Date, default: null },
 
     publishedAt:    Date,
     platformPostId: { type: String, default: null },

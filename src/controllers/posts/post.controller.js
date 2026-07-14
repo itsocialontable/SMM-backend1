@@ -769,7 +769,12 @@ exports.getPublishedPosts = async (req, res) => {
       filter.client = clientId;
     }
 
-    const posts = await Post.find(filter).sort({ publishedAt: -1 });
+    // v20: client ka naam/company bhi bhejo — abhi tak sirf client ID
+    // aata tha, frontend ko pata nahi chalta tha ye post kis client
+    // ke liye publish hua hai.
+    const posts = await Post.find(filter)
+      .sort({ publishedAt: -1 })
+      .populate("client", "name companyName email profileImage");
 
     return res.status(200).json({ success: true, count: posts.length, data: posts });
   } catch (err) {

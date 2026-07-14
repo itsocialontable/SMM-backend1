@@ -46,6 +46,11 @@ try {
   publishScheduledPosts(io);
 } catch (e) { console.log("⚠️  Scheduled job skipped:", e.message); }
 
+try {
+  const syncAnalytics = require("./jobs/syncAnalytics.job");
+  syncAnalytics();
+} catch (e) { console.log("⚠️  Analytics sync job skipped:", e.message); }
+
 io.use((socket, next) => {
   try {
     const token = socket.handshake.auth.token;

@@ -139,9 +139,39 @@ app.use("/api/smm",     require("./routes/smm.routes"));
 
 // ================= OAUTH CALLBACK =================
 app.get("/auth/callback", (req, res) => {
-  const { code, state } = req.query;
+  const { code, state, error, error_description } = req.query;
   const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8080";
-  return res.redirect(`${frontendUrl}/auth/callback?code=${code}&state=${state}`);
+
+  // v20: Website aur mobile app dono isi single /auth/callback URL ko
+  // Facebook/Google me redirect_uri ki tarah use karte hain (kyunki
+  // dono ke provider console me alag-alag redirect URI register karna
+  // extra overhead + har platform pe dobara verification hota).
+  // Farak sirf itna hai ki app se aaya request ka `state` decode karne
+  // par { source: "app" } milega (getAuthUrl me set kiya gaya) —
+  // usi marker se yahan decide karte hain kahan bhejna hai.
+  // Website flow (marker na ho) — bilkul pehle jaisa hi, kuch change nahi.
+  let source = null;
+  if (state) {
+    try {
+      const normalized = state.replace(/-/g, "+").replace(/_/g, "/");
+      const decoded = JSON.parse(Buffer.from(normalized, "base64").toString());
+      source = decoded?.source || null;
+    } catch {
+      // state corrupt/invalid ho to bhi normal website flow me hi bhej do —
+      // connectAccount() waha pe already state validate karega aur
+      // proper "Invalid state" error dega.
+    }
+  }
+
+  const queryString = `code=${code || ""}&state=${state || ""}` +
+    (error ? `&error=${error}&error_description=${error_description || ""}` : "");
+
+  if (source === "app") {
+    const appScheme = process.env.APP_OAUTH_REDIRECT || "smmapp://oauth-callback";
+    return res.redirect(`${appScheme}?${queryString}`);
+  }
+
+  return res.redirect(`${frontendUrl}/auth/callback?${queryString}`);
 });
 
 // ================= MULTER ERROR HANDLER =================

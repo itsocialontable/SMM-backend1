@@ -213,13 +213,10 @@ async function processPostPublish(postId) {
     post.publishedAt = null;
   }
 
-  // ── Mock analytics sirf jab real publish hua ho aur analyticsSource mock ho ──
-  if (post.analyticsSource !== "real" && post.status === "published") {
-    post.likes    = Math.floor(Math.random() * 500);
-    post.comments = Math.floor(Math.random() * 120);
-    post.shares   = Math.floor(Math.random() * 60);
-    post.views    = Math.floor(Math.random() * 5000);
-  }
+  // v20: Random/mock analytics hata diya gaya hai. Publish ke turant baad
+  // likes/comments/views 0 hi hote hain (platform pe abhi data generate
+  // nahi hua hota) — asli numbers `analyticsSync.job.js` cron (har 3
+  // ghante) background me fetch karke yahan update karega.
 
   await post.save();
   console.log(`${post.status === "published" ? "✅" : "⚠️"} Post ${post.status}:`, post._id.toString());

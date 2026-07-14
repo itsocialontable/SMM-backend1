@@ -82,6 +82,41 @@ exports.getOverview = async (req, res) => {
       totalViews: 0
     };
 
+    // ================= PLATFORM-WISE BREAKDOWN =================
+    // v20: har platform (facebook/instagram/youtube/etc.) ka apna
+    // alag likes/comments/shares/views — results[] array unwind karke
+    // per-platform analytics sub-object se sum kiya jaata hai.
+    const platformBreakdown = await Post.aggregate([
+      {
+        $match: {
+          user: userObjectId,
+          status: "published"
+        }
+      },
+      { $unwind: "$results" },
+      {
+        $match: { "results.status": "success" }
+      },
+      {
+        $group: {
+          _id: "$results.platform",
+          likes:    { $sum: { $ifNull: ["$results.analytics.likes", 0] } },
+          comments: { $sum: { $ifNull: ["$results.analytics.comments", 0] } },
+          shares:   { $sum: { $ifNull: ["$results.analytics.shares", 0] } },
+          views:    { $sum: { $ifNull: ["$results.analytics.views", 0] } },
+          posts:    { $sum: 1 }
+        }
+      },
+      {
+        $project: {
+          _id: 0,
+          platform: "$_id",
+          likes: 1, comments: 1, shares: 1, views: 1, posts: 1
+        }
+      },
+      { $sort: { platform: 1 } }
+    ]);
+
     return res.status(200).json({
       success: true,
 
@@ -95,7 +130,10 @@ exports.getOverview = async (req, res) => {
           publishedPosts
         },
 
-        analytics: totals
+        analytics: {
+          ...totals,
+          byPlatform: platformBreakdown
+        }
       }
     });
 

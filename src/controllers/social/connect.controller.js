@@ -38,7 +38,7 @@ const { validateClientForSmm } = require("../../utils/validateClientForSmm.util"
 // =====================================================
 exports.getAuthUrl = async (req, res) => {
   const { platform } = req.params;
-  const { clientId } = req.query;
+  const { clientId, source } = req.query;
 
   const config = OAUTH_CONFIG[platform];
   if (!config) {
@@ -52,11 +52,18 @@ exports.getAuthUrl = async (req, res) => {
     }
   }
 
+  // v20: mobile app se aane wala request pehchan-ne ke liye marker.
+  // App apna auth URL request karte waqt ?source=app bhejta hai — ye
+  // state ke andar save ho jaata hai (tamper-safe nahi, sirf routing
+  // hint hai) taaki /auth/callback pe pata chal sake user browser
+  // (website) se aaya tha ya app (webview) se, aur us hisaab se
+  // sahi jagah redirect kiya ja sake.
   const statePayload = {
     userId: req.user.id,
     platform,
     time: Date.now(),
-    ...(clientId ? { clientId } : {})
+    ...(clientId ? { clientId } : {}),
+    ...(source === "app" ? { source: "app" } : {})
   };
 
   const state = Buffer.from(JSON.stringify(statePayload)).toString("base64url");
