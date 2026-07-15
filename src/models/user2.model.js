@@ -43,6 +43,16 @@ const userSchema2 = new mongoose.Schema(
     duration:     { type: String, default: "" },
     description:  { type: String, default: "" },
 
+    // v20: client "Connected Devices" preference — kaunse platforms
+    // client use karna chahta hai (UI ke "Connected Devices" chips se
+    // aata hai). Ye sirf admin/SMM ka intent/preference record hai,
+    // actual OAuth connection SocialAccount model me alag se hoti hai.
+    connectedDevices: {
+      type: [String],
+      enum: ["youtube", "pinterest", "twitter", "facebook", "instagram", "threads"],
+      default: []
+    },
+
     smmList: [{ type: mongoose.Schema.Types.ObjectId, ref: "User2" }],
     gdList:  [{ type: mongoose.Schema.Types.ObjectId, ref: "User2" }],
 

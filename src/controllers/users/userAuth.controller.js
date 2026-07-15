@@ -27,7 +27,7 @@ exports.createUser = async (req, res) => {
       // ── NEW v20: Extended client fields ──
       serviceKey, gstNumber, address,
       projectTitle, duration, description,
-      smmList, gdList,
+      smmList, gdList, connectedDevices,
 
       // SMM / GD fields
       experience, skills, platforms, specialization
@@ -74,6 +74,7 @@ exports.createUser = async (req, res) => {
       description:  role === "Client" ? (description  || "") : undefined,
       smmList:      role === "Client" ? (smmList      || []) : undefined,
       gdList:       role === "Client" ? (gdList       || []) : undefined,
+      connectedDevices: role === "Client" ? (connectedDevices || []) : undefined,
 
       experience, skills, platforms, specialization,
       agencyId

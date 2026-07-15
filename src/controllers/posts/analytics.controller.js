@@ -8,48 +8,81 @@
 //   ObjectId me cast karke match kiya jaata hai (raw aggregate
 //   pipeline me Mongoose auto-cast nahi karta, explicit cast zaroori
 //   hai).
+// UPDATED v20: Optional ?clientId= query param — diya jaaye to sirf
+//   usi client ke posts ka overview aata hai, aur response me
+//   "client": { id, name, companyName } bhi milta hai taaki UI ko
+//   pata chale ye kis client ka data hai. clientId na diya jaaye to
+//   pehle jaisa hi — SMM/agency ke SAARE clients ka combined data.
 // ==========================================
 
 const mongoose = require("mongoose");
-const Post = require("../../models/post.model");
+const Post   = require("../../models/post.model");
+const User2  = require("../../models/user2.model");
+const { validateClientForSmm } = require("../../utils/validateClientForSmm.util");
 
 exports.getOverview = async (req, res) => {
   try {
 
     const userId = req.user.id;
     const userObjectId = new mongoose.Types.ObjectId(userId);
+    const { clientId } = req.query;
+
+    // ================= OPTIONAL CLIENT FILTER =================
+    let clientInfo = null;
+    const baseFilter = { user: userId };
+
+    if (clientId) {
+      // Ownership verify karo — role ke hisaab se check alag hai
+      if (req.user.role === "SMM") {
+        const check = await validateClientForSmm(userId, clientId);
+        if (!check.valid) {
+          return res.status(400).json({ success: false, msg: check.reason });
+        }
+        clientInfo = check.client;
+      } else {
+        // Admin/Agency — client isi agency ka hona chahiye
+        const client = await User2.findOne({ _id: clientId, agencyId: userId, role: "Client" })
+          .select("name email companyName").lean();
+        if (!client) {
+          return res.status(400).json({ success: false, msg: "Client not found or not part of your agency" });
+        }
+        clientInfo = client;
+      }
+      baseFilter.client = clientId;
+    }
 
     // ================= COUNTS =================
     const totalPosts = await Post.countDocuments({
-      user: userId
+      ...baseFilter
     });
 
     const draftPosts = await Post.countDocuments({
-      user: userId,
+      ...baseFilter,
       status: "draft"
     });
 
     const queuedPosts = await Post.countDocuments({
-      user: userId,
+      ...baseFilter,
       status: "queued"
     });
 
     const scheduledPosts = await Post.countDocuments({
-      user: userId,
+      ...baseFilter,
       status: "scheduled"
     });
 
     const publishedPosts = await Post.countDocuments({
-      user: userId,
+      ...baseFilter,
       status: "published"
     });
 
     // ================= ANALYTICS =================
+    const matchStage = { user: userObjectId };
+    if (clientId) matchStage.client = new mongoose.Types.ObjectId(clientId);
+
     const analytics = await Post.aggregate([
       {
-        $match: {
-          user: userObjectId
-        }
+        $match: matchStage
       },
 
       {
@@ -86,12 +119,12 @@ exports.getOverview = async (req, res) => {
     // v20: har platform (facebook/instagram/youtube/etc.) ka apna
     // alag likes/comments/shares/views — results[] array unwind karke
     // per-platform analytics sub-object se sum kiya jaata hai.
+    const platformMatchStage = { user: userObjectId, status: "published" };
+    if (clientId) platformMatchStage.client = new mongoose.Types.ObjectId(clientId);
+
     const platformBreakdown = await Post.aggregate([
       {
-        $match: {
-          user: userObjectId,
-          status: "published"
-        }
+        $match: platformMatchStage
       },
       { $unwind: "$results" },
       {
@@ -121,6 +154,12 @@ exports.getOverview = async (req, res) => {
       success: true,
 
       data: {
+
+        // v20: clientId diya gaya tha to yahan us client ka naam/info —
+        // nahi diya to null (matlab "saare clients ka combined data")
+        client: clientInfo
+          ? { id: clientInfo._id, name: clientInfo.name, companyName: clientInfo.companyName || "" }
+          : null,
 
         posts: {
           totalPosts,
