@@ -31,7 +31,7 @@ const allowedOrigins = [
   process.env.FRONTEND_URL,
   // local-dev fallbacks — production me inhe hata sakte ho
   "http://localhost:8080",
-  "https://ornate-cocada-431ffc.netlify.app/",
+  "https://ornate-cocada-431ffc.netlify.app",
   "http://localhost:3000",
   "http://localhost:4000",
   "http://localhost:5173"
@@ -141,7 +141,7 @@ app.use("/api/smm",     require("./routes/smm.routes"));
 // ================= OAUTH CALLBACK =================
 app.get("/auth/callback", (req, res) => {
   const { code, state, error, error_description } = req.query;
-  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8080";
+  const frontendUrl = process.env.FRONTEND_URL || "http://localhost:8080" || "";
 
   // v20: Website aur mobile app dono isi single /auth/callback URL ko
   // Facebook/Google me redirect_uri ki tarah use karte hain (kyunki
