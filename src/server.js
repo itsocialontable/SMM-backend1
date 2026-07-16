@@ -25,7 +25,8 @@ const allowedOrigins = [
   ...envOrigins,
   process.env.FRONTEND_URL,
   "http://localhost:8080",
-  "https://ornate-cocada-431ffc.netlify.app",
+  // "https://ornate-cocada-431ffc.netlify.app",
+  "https://smm-web-frontend-9k9o4qw89-socialontable.vercel.app",
   "http://localhost:3000",
   "http://localhost:4000",
   "http://localhost:5173"
