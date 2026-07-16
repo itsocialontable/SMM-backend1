@@ -1153,11 +1153,87 @@ async function fetchFirstPinterestBoard(accessToken) {
 }
 
 
+// ─────────────────────────────────────────────────────────
+// THREADS
+// accountId = Threads user ID (from connect-time /v1.0/{id} fetch)
+// Unlike Instagram, Threads supports TEXT-ONLY posts — media is
+// optional. Same two-step container->publish flow as Instagram.
+// ─────────────────────────────────────────────────────────
+async function publishToThreads(accessToken, threadsUserId, content, mediaUrls = []) {
+  const media = mediaUrls.find(m => m.type === "image" || m.type === "video");
+
+  const containerParams = {
+    text: content || "",
+    access_token: accessToken
+  };
+
+  if (media?.type === "video") {
+    containerParams.media_type = "VIDEO";
+    containerParams.video_url  = media.url;
+  } else if (media?.type === "image") {
+    containerParams.media_type = "IMAGE";
+    containerParams.image_url  = media.url;
+  } else {
+    containerParams.media_type = "TEXT";
+  }
+
+  const containerRes = await axios.post(
+    `https://graph.threads.net/v1.0/${threadsUserId}/threads`,
+    containerParams
+  );
+
+  const creationId = containerRes.data?.id;
+  if (!creationId) throw new Error("Threads media container creation failed");
+
+  // Video processing time lagta hai — status poll karo (Instagram jaisa hi).
+  // Text/Image almost instant ready ho jaate hain.
+  if (media?.type === "video") {
+    const maxAttempts = 30;       // 30 x 3s = 90 seconds max wait
+    const pollIntervalMs = 3000;
+    let ready = false;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(r => setTimeout(r, pollIntervalMs));
+
+      const statusRes = await axios.get(
+        `https://graph.threads.net/v1.0/${creationId}`,
+        { params: { fields: "status", access_token: accessToken } }
+      );
+
+      const status = statusRes.data?.status;
+      if (status === "FINISHED") { ready = true; break; }
+      if (status === "ERROR") {
+        throw new Error("Threads failed to process the video — the file may be an unsupported format or too large.");
+      }
+      if (status === "EXPIRED") {
+        throw new Error("Threads video container expired before it could be published — please try again.");
+      }
+    }
+
+    if (!ready) {
+      throw new Error("Threads is still processing this video after 90 seconds — try a shorter/smaller video, or publish again in a minute.");
+    }
+  }
+
+  const publishRes = await axios.post(
+    `https://graph.threads.net/v1.0/${threadsUserId}/threads_publish`,
+    { creation_id: creationId, access_token: accessToken }
+  );
+
+  const postId = publishRes.data?.id;
+  // Note: exact public URL needs the account's @username (not the numeric
+  // ID we have here), so we don't construct a guessed link — leave null
+  // rather than risk a broken URL. postId itself is enough to look it up.
+  return { status: "success", postId, url: null };
+}
+
+
 module.exports = {
   publishToTwitter,
   publishToLinkedIn,
   publishToFacebook,
   publishToInstagram,
   publishToPinterest,
-  fetchFirstPinterestBoard
+  fetchFirstPinterestBoard,
+  publishToThreads
 };

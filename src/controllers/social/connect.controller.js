@@ -484,6 +484,72 @@ exports.connectAccount = async (req, res) => {
     }
 
     // =====================================================
+    // THREADS
+    // v20: Do-step token exchange chahiye —
+    //   1) code -> short-lived token (graph.threads.net/oauth/access_token)
+    //   2) short-lived -> long-lived token (60 din valid, refresh
+    //      hota rehta hai) — warna token bahut jaldi (1 ghante me)
+    //      expire ho jaata, roz reconnect karwana padta.
+    // =====================================================
+    else if (platform === "threads") {
+      try {
+        const tokenRes = await axios.post(
+          config.tokenUrl,
+          new URLSearchParams({
+            client_id:     config.clientId,
+            client_secret: config.clientSecret,
+            grant_type:    "authorization_code",
+            redirect_uri:  usedRedirectUri,
+            code
+          }),
+          { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        );
+
+        const shortLivedToken = tokenRes.data?.access_token;
+        const threadsUserId   = tokenRes.data?.user_id;
+
+        if (!shortLivedToken || !threadsUserId) {
+          return res.status(400).json({
+            success: false,
+            msg: "Threads token missing",
+            raw: tokenRes.data
+          });
+        }
+
+        // Short-lived (1hr) -> Long-lived (60 din) exchange
+        const longLivedRes = await axios.get("https://graph.threads.net/access_token", {
+          params: {
+            grant_type:    "th_exchange_token",
+            client_secret: config.clientSecret,
+            access_token:  shortLivedToken
+          }
+        });
+
+        accessToken = longLivedRes.data?.access_token || shortLivedToken;
+        expiresIn   = longLivedRes.data?.expires_in || 3600;
+        accountId   = threadsUserId;
+
+        const profileRes = await axios.get(`https://graph.threads.net/v1.0/${threadsUserId}`, {
+          params: {
+            fields: "id,username,threads_profile_picture_url",
+            access_token: accessToken
+          }
+        });
+
+        accountName  = profileRes.data?.username || "Threads Account";
+        profileImage = profileRes.data?.threads_profile_picture_url || "";
+
+      } catch (err) {
+        console.error("THREADS ERROR:", err.response?.data || err.message);
+        return res.status(400).json({
+          success: false,
+          msg: "Threads OAuth failed — confirm the connected account is an Instagram Business/Creator account linked to a Threads profile.",
+          error: err.response?.data
+        });
+      }
+    }
+
+    // =====================================================
     // SAVE TO DB
     // =====================================================
     const ownerType = (req.user.role === "admin" || req.user.role === "Admin") ? "Agency" : "User2";

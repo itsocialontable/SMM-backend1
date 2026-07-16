@@ -39,7 +39,7 @@ const socialAccountSchema = new mongoose.Schema(
 
     platform: {
       type: String,
-      enum: ["instagram", "youtube", "linkedin", "twitter", "facebook", "pinterest"],
+      enum: ["instagram", "youtube", "linkedin", "twitter", "facebook", "pinterest", "threads"],
       required: true,
       index: true,
     },

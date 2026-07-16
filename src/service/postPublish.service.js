@@ -26,7 +26,8 @@ const {
   publishToFacebook,
   publishToInstagram,
   publishToPinterest,
-  fetchFirstPinterestBoard
+  fetchFirstPinterestBoard,
+  publishToThreads
 } = require("./socialPublish.service");
 
 const axios = require("axios");
@@ -188,6 +189,11 @@ async function processPostPublish(postId) {
           boardId = await fetchFirstPinterestBoard(accessToken);
         }
         const result = await publishToPinterest(accessToken, post.content, mediaList, boardId);
+        post.results.push({ platform, ...result });
+
+      // ─────────────────── THREADS ───────────────────
+      } else if (platform === "threads") {
+        const result = await publishToThreads(accessToken, account.accountId, post.content, mediaList);
         post.results.push({ platform, ...result });
 
       } else {

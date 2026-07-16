@@ -167,6 +167,21 @@ pinterest: {
   authUrl: "https://www.pinterest.com/oauth/",
   tokenUrl: "https://api.pinterest.com/v5/oauth/token",
   scope: "boards:read,pins:read,pins:write,user_accounts:read"
+},
+
+// v20: THREADS — Meta ke Threads API pe chalta hai (Instagram/Facebook
+// jaisa hi Meta Graph ecosystem, lekin apna alag domain — threads.net
+// authorize ke liye, graph.threads.net token/publish ke liye).
+// Zaroori: connect karne wale client ka Instagram account "Business"
+// ya "Creator" type hona chahiye aur usi se Threads profile linked
+// hona chahiye — warna authorize screen khud hi block kar degi.
+threads: {
+  clientId: process.env.THREADS_CLIENT_ID,
+  clientSecret: process.env.THREADS_CLIENT_SECRET,
+  redirectUri: process.env.THREADS_REDIRECT_URI,
+  authUrl: "https://threads.net/oauth/authorize",
+  tokenUrl: "https://graph.threads.net/oauth/access_token",
+  scope: "threads_basic,threads_content_publish"
 }
 
 };
