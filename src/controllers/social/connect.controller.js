@@ -529,7 +529,21 @@ exports.connectAccount = async (req, res) => {
         expiresIn   = longLivedRes.data?.expires_in || 3600;
         accountId   = threadsUserId;
 
-        const profileRes = await axios.get(`https://graph.threads.net/v1.0/${threadsUserId}`, {
+        // const profileRes = await axios.get(`https://graph.threads.net/v1.0/${threadsUserId}`, {
+        //   params: {
+        //     fields: "id,username,threads_profile_picture_url",
+        //     access_token: accessToken
+        //   }
+        // });
+
+        // accountName  = profileRes.data?.username || "Threads Account";
+        // profileImage = profileRes.data?.threads_profile_picture_url || "";
+
+        // FIXED v21.2: raw numeric threadsUserId se direct query karne pe
+        // "Unsupported get request... does not exist" (code 100, subcode 33)
+        // error aa raha tha — turant token milne ke baad "me" alias use
+        // karna zyada reliable hai (Meta ki apni recommended pattern).
+        const profileRes = await axios.get(`https://graph.threads.net/v1.0/me`, {
           params: {
             fields: "id,username,threads_profile_picture_url",
             access_token: accessToken
@@ -538,6 +552,9 @@ exports.connectAccount = async (req, res) => {
 
         accountName  = profileRes.data?.username || "Threads Account";
         profileImage = profileRes.data?.threads_profile_picture_url || "";
+        // Extra safety — agar profile endpoint apna khud ka confirmed id
+        // de raha hai, usi ko trust karo (token-exchange wale se zyada reliable)
+        accountId    = profileRes.data?.id || accountId;
 
       } catch (err) {
         console.error("THREADS ERROR:", err.response?.data || err.message);
