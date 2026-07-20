@@ -17,9 +17,16 @@ exports.getAccounts = async (req, res) => {
       return res.status(401).json({ success: false, msg: "Unauthorized user" });
     }
 
-    const { clientId } = req.query;
+    const { clientId, platform } = req.query;
 
     const query = { user: req.user.id, isActive: true };
+
+    // v21: platform filter — frontend isse "sirf Facebook Pages
+    // dikhao" jaisa dropdown bana sakta hai (post publish karte
+    // waqt konsi Page/account pe post karni hai choose karwane ke liye).
+    if (platform) {
+      query.platform = platform;
+    }
 
     if (clientId) {
       // Specific client ke accounts — ownership validate karo

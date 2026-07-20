@@ -170,6 +170,15 @@ exports.connectAccount = async (req, res) => {
 
     // =====================================================
     // FACEBOOK
+    // v21: PEHLE sirf EK Page save hoti thi (pageId diya ho to wahi,
+    //   warna pages[0] — user ko pata hi nahi chalta tha post kis Page
+    //   pe gaya). AB — user jitne bhi Facebook Pages manage karta hai,
+    //   SAB ko alag-alag SocialAccount documents ke roop me save kiya
+    //   jaata hai (isi client ke naam). Post banate waqt frontend
+    //   `GET /api/social/accounts?clientId=X&platform=facebook` call
+    //   karke saari connected Pages ki list dikha sakta hai — user
+    //   wahan se specific Page select karega, uski accountId
+    //   post.platformAccounts array me bhejegi.
     // =====================================================
     if (platform === "facebook") {
       try {
@@ -197,7 +206,7 @@ exports.connectAccount = async (req, res) => {
           params: { access_token: userAccessToken, fields: "id,name,access_token,picture" }
         });
 
-        const pages = pagesRes.data?.data || [];
+        let pages = pagesRes.data?.data || [];
         if (!pages.length) {
           return res.status(400).json({
             success: false,
@@ -205,13 +214,59 @@ exports.connectAccount = async (req, res) => {
           });
         }
 
-        const chosenPage = (pageId && pages.find(p => p.id === pageId)) || pages[0];
+        // Agar frontend ne specifically ek pageId bheja hai (jaise
+        // "sirf isi Page ko reconnect/refresh karo"), to sirf wahi
+        // process karo. Warna default: SAARI Pages save karo.
+        if (pageId) {
+          pages = pages.filter(p => p.id === pageId);
+        }
 
-        accessToken  = chosenPage.access_token; // Page access token — isi se posting hoti hai
-        expiresIn    = tokenRes.data?.expires_in || null;
-        accountId    = chosenPage.id;
-        accountName  = chosenPage.name;
-        profileImage = chosenPage.picture?.data?.url || "";
+        const ownerType = (req.user.role === "admin" || req.user.role === "Admin") ? "Agency" : "User2";
+        const savedAccounts = [];
+
+        for (const page of pages) {
+          const pageExpiresIn = tokenRes.data?.expires_in || null;
+
+          const saved = await SocialAccount.findOneAndUpdate(
+            { user: req.user.id, platform: "facebook", accountId: page.id, client: targetClientId },
+            {
+              user:     req.user.id,
+              ownerType,
+              client:   targetClientId,
+              platform: "facebook",
+              accountName:  page.name,
+              accountId:    page.id,
+              accessToken:  encrypt(page.access_token), // Page access token — isi se posting hoti hai
+              refreshToken: null,
+              profileImage: page.picture?.data?.url || "",
+              isActive:     true,
+              connectedAt:  new Date(),
+              tokenExpiresAt: pageExpiresIn ? new Date(Date.now() + pageExpiresIn * 1000) : null
+            },
+            { upsert: true, returnDocument: "after", new: true }
+          );
+
+          savedAccounts.push(saved);
+        }
+
+        const io = req.app.get("io");
+        await sendNotification({
+          io,
+          userId: req.user.id,
+          type: ownerType === "Agency" ? "Agency" : "User2",
+          event: "account_connected",
+          title: "Account Connected",
+          message: `Facebook — ${savedAccounts.length} Page${savedAccounts.length > 1 ? "s" : ""} connected successfully${targetClientId ? " (for client)" : ""}`
+        });
+
+        // Facebook ke liye yahin response bhej do — neeche wala generic
+        // single-account "SAVE TO DB" block skip ho jaayega.
+        return res.status(200).json({
+          success: true,
+          msg: `${savedAccounts.length} Facebook Page${savedAccounts.length > 1 ? "s" : ""} connected successfully`,
+          forClient: targetClientId || null,
+          data: savedAccounts
+        });
 
       } catch (err) {
         console.error("FACEBOOK ERROR:", err.response?.data || err.message);

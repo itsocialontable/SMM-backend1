@@ -56,6 +56,21 @@ const postSchema = new mongoose.Schema(
     // Agar nahi diya, worker user ka pehla board fetch karke use karega.
     pinterestBoardId: { type: String, default: null },
 
+    // v21: EK client ke ek hi platform pe MULTIPLE connected accounts
+    // ho sakte hain ab (jaise Facebook — ek client ke naam pe kai Pages
+    // connect ho sakti hain). `platforms` array (upar) sirf "kaunse
+    // platforms pe jaana hai" batata hai — ye naya field batata hai
+    // "us platform ke KAUNSE specific account pe". Optional hai — na
+    // diya jaaye to us platform ka pehla connected account use hoga
+    // (backward-compatible, purana behavior).
+    platformAccounts: [
+      {
+        platform:  { type: String, required: true },
+        accountId: { type: String, required: true },
+        _id: false
+      }
+    ],
+
     // ---- Primary scheduled datetime (ISO string or Date) ----
     scheduleAt: { type: Date, default: null },
 

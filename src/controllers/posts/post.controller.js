@@ -650,7 +650,11 @@ exports.createPost = async (req, res) => {
       tags,
       youtubeTitle,
       youtubePrivacy,
-      clientId          // ← NEW: SMM kis client ke liye post kar raha hai
+      clientId,          // ← NEW: SMM kis client ke liye post kar raha hai
+      // v21: agar kisi platform (jaise Facebook) ke multiple connected
+      // accounts hain is client ke, user yahan specify karega konsi
+      // account/Page pe publish karni hai. Optional — [{platform, accountId}]
+      platformAccounts
     } = req.body;
 
     if (!req.user?.id) {
@@ -700,6 +704,21 @@ exports.createPost = async (req, res) => {
       cleanupTempFiles(req.files);
     }
 
+    // ── v21: platformAccounts multipart/form-data se aksar JSON string
+    // ke roop me aata hai (form-data me nested arrays/objects seedhe
+    // nahi ja sakte) — safely parse karo, agar galat/missing ho to
+    // bas khaali array (matlab "default account use karo") ──
+    let platformAccountsParsed = [];
+    if (platformAccounts) {
+      try {
+        platformAccountsParsed = typeof platformAccounts === "string"
+          ? JSON.parse(platformAccounts)
+          : platformAccounts;
+      } catch {
+        platformAccountsParsed = [];
+      }
+    }
+
     const delay = resolvedAt ? Math.max(resolvedAt - new Date(), 0) : 0;
 
     const post = await Post.create({
@@ -709,6 +728,7 @@ exports.createPost = async (req, res) => {
       content,
       media:     mediaArray,
       platforms: platformList,
+      platformAccounts: platformAccountsParsed,
       tags:      tags ? (Array.isArray(tags) ? tags : tags.split(",").map(t => t.trim())) : [],
       scheduleAt:      resolvedAt,
       scheduleDate:    resolvedDate,

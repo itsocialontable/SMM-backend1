@@ -110,6 +110,16 @@ async function processPostPublish(postId) {
       client:   post.client || null
     };
 
+    // v21: agar user ne is platform ke liye specific account choose
+    // kiya tha (post.platformAccounts me), usi ko target karo —
+    // generalized hai, sirf Facebook tak limited nahi. Na diya ho to
+    // us platform ka pehla connected account use hota hai (jaisa
+    // pehle se hota tha — backward-compatible).
+    const chosenAccount = post.platformAccounts?.find(pa => pa.platform === platform);
+    if (chosenAccount?.accountId) {
+      accountQuery.accountId = chosenAccount.accountId;
+    }
+
     // FIX: accessToken/refreshToken select:false hain — explicitly
     // select karna zaroori hai, warna decrypt(undefined) crash karega
     const account = await SocialAccount
