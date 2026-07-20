@@ -103,9 +103,10 @@
 //   na hua ho.
 // ==========================================
 
-const jwt    = require("jsonwebtoken");
-const User   = require("../models/user2.model");
-const Agency = require("../models/agency.model");
+const jwt        = require("jsonwebtoken");
+const User       = require("../models/user2.model");
+const Agency     = require("../models/agency.model");
+const SuperAdmin = require("../models/superAdmin.model");
 
 const ADMIN_ROLES = ["admin", "Admin", "agency", "Agency"];
 
@@ -137,10 +138,20 @@ module.exports = async (req, res, next) => {
     // hai aur active hai — sirf token valid hone se kaam nahi
     // chalega, warna deleted/deactivated user purane token se
     // login-jaisa access continue rakh sakta hai.
-    const isAdminRole = ADMIN_ROLES.includes(decoded.role);
-    const account = isAdminRole
-      ? await Agency.findById(decoded.id).select("isActive").lean()
-      : await User.findById(decoded.id).select("isActive deletedAt").lean();
+    // FIXED v21.1: "superadmin" role ek TEESRI, bilkul alag collection
+    //   (SuperAdmin model) me store hota hai — Agency ya User2 me nahi.
+    //   Pehle isko bhool ke User2 me dhoonda ja raha tha, jisse har
+    //   superadmin request galti se "account no longer exists" bolke
+    //   block ho rahi thi. SuperAdmin model me isActive field hai hi
+    //   nahi, isliye us case me sirf existence check hota hai.
+    let account;
+    if (decoded.role === "superadmin") {
+      account = await SuperAdmin.findById(decoded.id).lean();
+    } else if (ADMIN_ROLES.includes(decoded.role)) {
+      account = await Agency.findById(decoded.id).select("isActive").lean();
+    } else {
+      account = await User.findById(decoded.id).select("isActive deletedAt").lean();
+    }
 
     if (!account) {
       return res.status(401).json({
