@@ -32,7 +32,8 @@ const allowedOrigins = [
   // local-dev fallbacks — production me inhe hata sakte ho
   "http://localhost:8080",
   // "https://ornate-cocada-431ffc.netlify.app",
-  "https://smm-web-frontend-9k9o4qw89-socialontable.vercel.app",
+  // "https://smm-web-frontend-9k9o4qw89-socialontable.vercel.app",
+  "https://smm-web-frontend.vercel.app",
   "http://localhost:3000",
   "http://localhost:4000",
   "http://localhost:5173"
