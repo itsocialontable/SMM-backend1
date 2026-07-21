@@ -783,6 +783,15 @@ exports.getAuthUrl = async (req, res) => {
     url += `&access_type=offline&prompt=consent`;
   }
 
+  // v22: Instagram Login for Business — force_authentication=1 se
+  // Instagram ki asli login screen hamesha dikhti hai (agar isko add
+  // na karein to kabhi-kabhi already-logged-in browser session me
+  // ye step silently skip ho jaata hai aur seedha permission screen
+  // pe chala jaata hai, jo confusing lag sakta hai).
+  if (platform === "instagramLogin") {
+    url += `&force_authentication=1`;
+  }
+
   return res.json({ success: true, url });
 };
 
@@ -998,7 +1007,7 @@ exports.connectAccount = async (req, res) => {
           params: { access_token: userAccessToken, fields: "id,name,access_token" }
         });
 
-        const pages = pagesRes.data?.data || [];
+        let pages = pagesRes.data?.data || [];
         if (!pages.length) {
           return res.status(400).json({
             success: false,
@@ -1006,13 +1015,19 @@ exports.connectAccount = async (req, res) => {
           });
         }
 
-        // Har page ke liye check karo ki uske saath Instagram Business Account linked hai ya nahi
-        let igAccount = null;
-        let igPageAccessToken = null;
+        if (pageId) {
+          pages = pages.filter(p => p.id === pageId);
+        }
+
+        // FIXED v21.3: Pehle sirf PEHLA match milte hi `break` ho jaata
+        // tha — matlab agar user ke 10 Pages me se 5 ke saath Instagram
+        // Business account linked ho, to sirf ek hi save/dikhta tha.
+        // AB — har Page ko check karo, jitne bhi Instagram accounts
+        // linked milein SABKO alag-alag SocialAccount documents ke
+        // roop me save karo (Facebook Pages wale pattern jaisa hi).
+        const igMatches = [];
 
         for (const page of pages) {
-          if (pageId && page.id !== pageId) continue;
-
           const igRes = await axios.get(`https://graph.facebook.com/v18.0/${page.id}`, {
             params: {
               fields: "instagram_business_account{id,username,profile_picture_url}",
@@ -1021,24 +1036,67 @@ exports.connectAccount = async (req, res) => {
           });
 
           if (igRes.data?.instagram_business_account) {
-            igAccount = igRes.data.instagram_business_account;
-            igPageAccessToken = page.access_token;
-            break;
+            igMatches.push({
+              igAccount: igRes.data.instagram_business_account,
+              pageAccessToken: page.access_token
+            });
           }
         }
 
-        if (!igAccount) {
+        if (!igMatches.length) {
           return res.status(400).json({
             success: false,
             msg: "No Instagram Business/Creator account linked to your Facebook Page(s) was found."
           });
         }
 
-        accessToken  = igPageAccessToken; // IG Graph API posting bhi Page access token se hota hai
-        expiresIn    = tokenRes.data?.expires_in || null;
-        accountId    = igAccount.id;
-        accountName  = igAccount.username || "Instagram Account";
-        profileImage = igAccount.profile_picture_url || "";
+        const ownerType = (req.user.role === "admin" || req.user.role === "Admin") ? "Agency" : "User2";
+        const igExpiresIn = tokenRes.data?.expires_in || null;
+        const savedAccounts = [];
+
+        for (const match of igMatches) {
+          const igAccount = match.igAccount;
+
+          const saved = await SocialAccount.findOneAndUpdate(
+            { user: req.user.id, platform: "instagram", accountId: igAccount.id, client: targetClientId },
+            {
+              user:     req.user.id,
+              ownerType,
+              client:   targetClientId,
+              platform: "instagram",
+              accountName:  igAccount.username || "Instagram Account",
+              accountId:    igAccount.id,
+              accessToken:  encrypt(match.pageAccessToken), // IG Graph API posting bhi Page access token se hota hai
+              refreshToken: null,
+              profileImage: igAccount.profile_picture_url || "",
+              isActive:     true,
+              connectedAt:  new Date(),
+              tokenExpiresAt: igExpiresIn ? new Date(Date.now() + igExpiresIn * 1000) : null
+            },
+            { upsert: true, returnDocument: "after", new: true }
+          );
+
+          savedAccounts.push(saved);
+        }
+
+        const io = req.app.get("io");
+        await sendNotification({
+          io,
+          userId: req.user.id,
+          type: ownerType === "Agency" ? "Agency" : "User2",
+          event: "account_connected",
+          title: "Account Connected",
+          message: `Instagram — ${savedAccounts.length} account${savedAccounts.length > 1 ? "s" : ""} connected successfully${targetClientId ? " (for client)" : ""}`
+        });
+
+        // Instagram ke liye yahin response bhej do — neeche wala generic
+        // single-account "SAVE TO DB" block skip ho jaayega.
+        return res.status(200).json({
+          success: true,
+          msg: `${savedAccounts.length} Instagram account${savedAccounts.length > 1 ? "s" : ""} connected successfully`,
+          forClient: targetClientId || null,
+          data: savedAccounts
+        });
 
       } catch (err) {
         console.error("INSTAGRAM ERROR:", err.response?.data || err.message);
@@ -1315,13 +1373,98 @@ exports.connectAccount = async (req, res) => {
     }
 
     // =====================================================
+    // INSTAGRAM LOGIN FOR BUSINESS (v22 — new, additive feature)
+    // Seedha Instagram ki apni login screen se connect hota hai —
+    // koi Facebook Page zaroori nahi. Existing "instagram" (Facebook-
+    // linked) flow bilkul untouched hai, ye ek bilkul alag platform
+    // key hai jisse purane clients/accounts par koi asar nahi padta.
+    // =====================================================
+    else if (platform === "instagramLogin") {
+      try {
+        // Step 1: short-lived token (form-urlencoded body chahiye —
+        // baaki platforms ki tarah query params se nahi hota)
+        const tokenRes = await axios.post(
+          config.tokenUrl,
+          new URLSearchParams({
+            client_id:     config.clientId,
+            client_secret: config.clientSecret,
+            grant_type:    "authorization_code",
+            redirect_uri:  usedRedirectUri,
+            code
+          }),
+          { headers: { "Content-Type": "application/x-www-form-urlencoded" } }
+        );
+
+        const shortLivedToken = tokenRes.data?.access_token;
+        const igUserId         = tokenRes.data?.user_id;
+
+        if (!shortLivedToken || !igUserId) {
+          return res.status(400).json({
+            success: false,
+            msg: "Instagram token missing",
+            raw: tokenRes.data
+          });
+        }
+
+        // Step 2: short-lived (1hr) -> long-lived (60 din) exchange
+        const longLivedRes = await axios.get("https://graph.instagram.com/access_token", {
+          params: {
+            grant_type:    "ig_exchange_token",
+            client_secret: config.clientSecret,
+            access_token:  shortLivedToken
+          }
+        });
+
+        const finalAccessToken = longLivedRes.data?.access_token || shortLivedToken;
+        const finalExpiresIn   = longLivedRes.data?.expires_in || 3600;
+
+        // Step 3: profile info fetch karo
+        const profileRes = await axios.get(`https://graph.instagram.com/v18.0/me`, {
+          params: {
+            fields: "id,username,account_type,profile_picture_url",
+            access_token: finalAccessToken
+          }
+        });
+
+        if (profileRes.data?.account_type === "PERSONAL") {
+          return res.status(400).json({
+            success: false,
+            msg: "This Instagram account is a Personal account. Please switch it to a Professional (Business or Creator) account in the Instagram app first — go to Settings → Account type."
+          });
+        }
+
+        accessToken  = finalAccessToken;
+        expiresIn    = finalExpiresIn;
+        accountId    = profileRes.data?.id || igUserId;
+        accountName  = profileRes.data?.username || "Instagram Account";
+        profileImage = profileRes.data?.profile_picture_url || "";
+
+      } catch (err) {
+        console.error("INSTAGRAM LOGIN ERROR:", err.response?.data || err.message);
+        return res.status(400).json({
+          success: false,
+          msg: "Instagram OAuth failed — confirm the account is a Professional (Business/Creator) account, and that it has been added as an Instagram Tester in Meta Developer Console (required until App Review is approved).",
+          error: err.response?.data
+        });
+      }
+    }
+
+    // =====================================================
     // SAVE TO DB
     // =====================================================
     const ownerType = (req.user.role === "admin" || req.user.role === "Admin") ? "Agency" : "User2";
 
+    // v22: instagramLogin accounts bhi DB me "instagram" platform ke
+    // roop me hi save hote hain (taaki existing UI/post-creation flow
+    // jo "instagram" filter karta hai, bina kisi change ke isko bhi
+    // dikhaye) — bas loginMethod field se differentiate hote hain
+    // taaki publish karte waqt sahi API host use ho.
+    const savedPlatform = platform === "instagramLogin" ? "instagram" : platform;
+    const savedLoginMethod = platform === "instagramLogin" ? "direct" : "facebook";
+
     const query = {
       user:     req.user.id,
-      platform,
+      platform: savedPlatform,
       accountId,
       client:   targetClientId
     };
@@ -1332,7 +1475,8 @@ exports.connectAccount = async (req, res) => {
         user:     req.user.id,
         ownerType,
         client:   targetClientId,
-        platform,
+        platform: savedPlatform,
+        loginMethod: savedLoginMethod,
         accountName,
         accountId,
         accessToken:  encrypt(accessToken),

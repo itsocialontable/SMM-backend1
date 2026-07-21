@@ -44,6 +44,24 @@ const socialAccountSchema = new mongoose.Schema(
       index: true,
     },
 
+    // v22: sirf "instagram" platform ke liye maayne rakhta hai — batata
+    // hai account kaise connect hua tha:
+    //   "facebook" (default) = purana flow, Facebook Page ke through
+    //     linked Instagram Business account (Facebook Login reuse)
+    //   "direct" = naya "Instagram Login for Business" flow, seedha
+    //     Instagram ki apni login screen se, Facebook Page ki zarurat
+    //     nahi. Publish karte waqt isi field se pata chalta hai kaunsa
+    //     API host (graph.facebook.com vs graph.instagram.com) use
+    //     karna hai.
+    // Additive field hai — purane records automatically "facebook"
+    // maane jaate hain (default), purana behavior bilkul waisa hi
+    // chalta hai.
+    loginMethod: {
+      type: String,
+      enum: ["facebook", "direct"],
+      default: "facebook",
+    },
+
     accountName: {
       type: String,
       trim: true,

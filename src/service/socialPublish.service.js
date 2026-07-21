@@ -1033,7 +1033,17 @@ async function publishToFacebook(accessToken, pageId, content, mediaUrls = []) {
 // karte hain — real processing time ke hisaab se wait karta hai, fixed
 // guess ki jagah.
 // ─────────────────────────────────────────────────────────
-async function publishToInstagram(accessToken, igUserId, content, mediaUrls = []) {
+// v22: 5th parameter "loginMethod" add kiya — "facebook" (default,
+// purana behavior, koi change nahi) ya "direct" (naya Instagram Login
+// for Business flow). Sirf API host badalta hai (graph.facebook.com
+// vs graph.instagram.com); baaki poora publish flow/logic identical
+// rehta hai. Existing calls jo ye parameter nahi bhejtin unpe zero
+// impact hai — default "facebook" hi apply hoga.
+async function publishToInstagram(accessToken, igUserId, content, mediaUrls = [], loginMethod = "facebook") {
+  const apiBase = loginMethod === "direct"
+    ? "https://graph.instagram.com/v18.0"
+    : "https://graph.facebook.com/v18.0";
+
   const media = mediaUrls.find(m => m.type === "image" || m.type === "video");
 
   if (!media) {
@@ -1053,7 +1063,7 @@ async function publishToInstagram(accessToken, igUserId, content, mediaUrls = []
   }
 
   const containerRes = await axios.post(
-    `https://graph.facebook.com/v18.0/${igUserId}/media`,
+    `${apiBase}/${igUserId}/media`,
     containerParams
   );
 
@@ -1072,7 +1082,7 @@ async function publishToInstagram(accessToken, igUserId, content, mediaUrls = []
       await new Promise(r => setTimeout(r, pollIntervalMs));
 
       const statusRes = await axios.get(
-        `https://graph.facebook.com/v18.0/${creationId}`,
+        `${apiBase}/${creationId}`,
         { params: { fields: "status_code", access_token: accessToken } }
       );
 
@@ -1097,7 +1107,7 @@ async function publishToInstagram(accessToken, igUserId, content, mediaUrls = []
   }
 
   const publishRes = await axios.post(
-    `https://graph.facebook.com/v18.0/${igUserId}/media_publish`,
+    `${apiBase}/${igUserId}/media_publish`,
     { creation_id: creationId, access_token: accessToken }
   );
 
@@ -1212,6 +1222,37 @@ async function publishToThreads(accessToken, threadsUserId, content, mediaUrls =
 
     if (!ready) {
       throw new Error("Threads is still processing this video after 90 seconds — try a shorter/smaller video, or publish again in a minute.");
+    }
+  } else if (media?.type === "image") {
+    // Images don't need long polling, but Threads' servers need a brief
+    // moment to fully register the container before it can be published.
+    // Publishing immediately after creation can return "Media Not Found"
+    // (code 24 / subcode 4279009) even though the container was created
+    // successfully. A short poll (with a couple retries) avoids this race.
+    const maxAttempts = 5;
+    const pollIntervalMs = 2000;
+
+    for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      await new Promise(r => setTimeout(r, pollIntervalMs));
+
+      try {
+        const statusRes = await axios.get(
+          `https://graph.threads.net/v1.0/${creationId}`,
+          { params: { fields: "status", access_token: accessToken } }
+        );
+        const status = statusRes.data?.status;
+        if (!status || status === "FINISHED") break;
+        if (status === "ERROR") {
+          throw new Error("Threads failed to process the image — the file may be an unsupported format.");
+        }
+        if (status === "EXPIRED") {
+          throw new Error("Threads image container expired before it could be published — please try again.");
+        }
+      } catch (pollErr) {
+        // If the status field isn't supported for images on this API
+        // version, just fall through to publish after the wait.
+        break;
+      }
     }
   }
 

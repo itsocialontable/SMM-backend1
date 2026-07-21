@@ -189,7 +189,14 @@ async function processPostPublish(postId) {
 
       // ─────────────── INSTAGRAM ───────────────
       } else if (platform === "instagram") {
-        const result = await publishToInstagram(accessToken, account.accountId, post.content, mediaList);
+        // v22: account.loginMethod batata hai account kaise connect
+        // hua tha ("facebook" = purana Facebook-linked flow, "direct" =
+        // naya Instagram Login for Business flow) — isi se sahi API
+        // host (graph.facebook.com vs graph.instagram.com) select hota
+        // hai. Purane accounts me ye field nahi hoga to default hi
+        // "facebook" maana jaata hai (schema-level default), yaani
+        // purana behavior bilkul unchanged rehta hai.
+        const result = await publishToInstagram(accessToken, account.accountId, post.content, mediaList, account.loginMethod);
         post.results.push({ platform, ...result });
 
       // ─────────────── PINTEREST ───────────────

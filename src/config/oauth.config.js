@@ -169,6 +169,29 @@ pinterest: {
   scope: "boards:read,pins:read,pins:write,user_accounts:read"
 },
 
+// v22: INSTAGRAM LOGIN FOR BUSINESS (aka "Instagram API with Instagram
+// Login") — ye "instagram" (upar wala, Facebook Login reuse karta hai)
+// se BILKUL ALAG product hai. Isme user seedha instagram.com ki asli
+// branded login screen pe jaata hai — koi Facebook Page zaroori nahi,
+// bas Instagram account "Professional" (Business/Creator) type ka hona
+// chahiye. Alag App ID/Secret chahiye hote hain Meta Developer Console
+// me is naye "Instagram" product se (Facebook Login product se nahi).
+// NOTE: purana "instagram" flow bilkul waisa hi chalta rahega — ye
+// dono independent options hain, frontend jo bhi platform key bheje
+// wahi use hoga.
+instagramLogin: {
+  clientId: process.env.INSTAGRAM_LOGIN_CLIENT_ID,
+  clientSecret: process.env.INSTAGRAM_LOGIN_CLIENT_SECRET,
+  redirectUri: process.env.INSTAGRAM_LOGIN_REDIRECT_URI,
+  authUrl: "https://www.instagram.com/oauth/authorize",
+  // Token exchange ke liye alag host/shape hai (form-urlencoded,
+  // api.instagram.com) — isliye connect.controller.js me is platform
+  // ke liye special handling hai, generic tokenUrl yahan sirf
+  // reference/consistency ke liye rakha hai.
+  tokenUrl: "https://api.instagram.com/oauth/access_token",
+  scope: "instagram_business_basic,instagram_business_content_publish"
+},
+
 // v20: THREADS — Meta ke Threads API pe chalta hai (Instagram/Facebook
 // jaisa hi Meta Graph ecosystem, lekin apna alag domain — threads.net
 // authorize ke liye, graph.threads.net token/publish ke liye).
