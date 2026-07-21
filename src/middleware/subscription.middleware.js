@@ -106,7 +106,7 @@ exports.checkSubscription = async (req, res, next) => {
 // Trial plan: max 5 clients, 5 team members, 20 posts
 // ──────────────────────────────────────────────────────────────────
 const TRIAL_LIMITS = {
-  clients:     5,
+  clients:     10,
   teamMembers: 5,
   posts:       20
 };
