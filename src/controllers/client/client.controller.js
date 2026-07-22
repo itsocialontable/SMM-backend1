@@ -120,7 +120,7 @@ exports.reviewDesign = async (req, res) => {
     const { action, feedback } = req.body;
 
     if (!action || !["approve","reject"].includes(action)) {
-      return res.status(400).json({ success: false, msg: "action zaroori hai: 'approve' ya 'reject'" });
+      return res.status(400).json({ success: false, msg: "action is required: 'approve' or 'reject'" });
     }
 
     const project = await DesignProject.findOne({ _id: req.params.id, client: req.user.id });
@@ -130,7 +130,7 @@ exports.reviewDesign = async (req, res) => {
     if (project.status !== "Client Review") {
       return res.status(400).json({
         success: false,
-        msg: `Project status '${project.status}' hai — sirf 'Client Review' status wale projects review kiye ja sakte hain`
+        msg: `Project status is '${project.status}' — only projects with 'Client Review' status can be reviewed`
       });
     }
 

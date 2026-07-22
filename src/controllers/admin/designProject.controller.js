@@ -50,11 +50,11 @@ exports.createProject = async (req, res) => {
 
     if (!clientCheck) {
       cleanupTempFiles(req.files);
-      return res.status(400).json({ success: false, msg: "Client aapki agency ka nahi hai" });
+      return res.status(400).json({ success: false, msg: "Client does not belong to your agency" });
     }
     if (!designerCheck) {
       cleanupTempFiles(req.files);
-      return res.status(400).json({ success: false, msg: "Graphic Designer aapki agency ka nahi hai" });
+      return res.status(400).json({ success: false, msg: "Graphic Designer does not belong to your agency" });
     }
 
     let assets = [];
@@ -98,7 +98,7 @@ exports.createProject = async (req, res) => {
       type:      "INFO",
       event:     "project_assigned",
       title:     "Naya project assign hua",
-      message:   `"${title}" project tumhe assign kiya gaya hai. Deadline: ${new Date(deadline).toLocaleDateString("en-IN")}`,
+      message:   `You have been assigned the "${title}" project. Deadline: ${new Date(deadline).toLocaleDateString("en-IN")}`,
       projectId: project._id,
       templateData: {
         projectTitle: title,

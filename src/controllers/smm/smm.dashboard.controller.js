@@ -96,7 +96,7 @@ exports.smmReviewProject = async (req, res) => {
     if (!action || !["approve","reject"].includes(action)) {
       return res.status(400).json({
         success: false,
-        msg: "action zaroori hai: 'approve' ya 'reject'"
+        msg: "action is required: 'approve' or 'reject'"
       });
     }
 
@@ -109,7 +109,7 @@ exports.smmReviewProject = async (req, res) => {
     if (project.status !== "SMM Review") {
       return res.status(400).json({
         success: false,
-        msg: `Project status '${project.status}' hai — sirf 'SMM Review' status wale projects review kiye ja sakte hain`
+        msg: `Project status is '${project.status}' — only projects with 'SMM Review' status can be reviewed`
       });
     }
 
@@ -129,8 +129,8 @@ exports.smmReviewProject = async (req, res) => {
         userId:    project.client,
         type:      "INFO",
         event:     "design_sent_to_client",
-        title:     "Aapka Design Review ke liye Ready Hai!",
-        message:   `"${project.title}" ka design ready ho gaya hai. Please review karein aur approve ya reject karein.`,
+        title:     "Your Design is Ready for Review!",
+        message:   `The design for "${project.title}" is ready. Please review and approve or reject it.`,
         projectId: project._id,
         templateData: {
           projectTitle: project.title,
@@ -138,20 +138,20 @@ exports.smmReviewProject = async (req, res) => {
         }
       });
 
-      // GD ko bhi batao ki SMM ne approve kar diya
+      // Also notify GD that SMM has approved
       await sendNotification({
         userId:    project.designer,
         type:      "SUCCESS",
         event:     "smm_approved_design",
-        title:     "SMM ne Design Approve Kiya",
-        message:   `"${project.title}" — SMM ne approve kar diya! Ab client review karega.`,
+        title:     "SMM Approved the Design",
+        message:   `"${project.title}" — SMM has approved it! It will now be reviewed by the client.`,
         projectId: project._id,
         templateData: { projectTitle: project.title }
       });
 
       return res.status(200).json({
         success: true,
-        msg: "Design approve ho gaya! Client ko review ke liye bhej diya.",
+        msg: "Design approved! Sent to client for review.",
         data: { projectId: project._id, title: project.title, status: project.status }
       });
 
@@ -166,13 +166,13 @@ exports.smmReviewProject = async (req, res) => {
       if (note) project.internalNotes = note;
       await project.save();
 
-      // GD ko revision notify karo
+      // Notify GD about the revision
       await sendNotification({
         userId:    project.designer,
         type:      "WARNING",
         event:     "smm_rejected_design",
-        title:     "SMM ne Design Reject Kiya — Revision Karo",
-        message:   `"${project.title}" — SMM ko changes chahiye: "${note || 'Koi note nahi diya'}". Please revise karo.`,
+        title:     "SMM Rejected the Design — Revision Needed",
+        message:   `"${project.title}" — SMM has requested changes: "${note || 'No note provided'}". Please revise.`,
         projectId: project._id,
         templateData: {
           projectTitle:    project.title,
@@ -184,7 +184,7 @@ exports.smmReviewProject = async (req, res) => {
 
       return res.status(200).json({
         success: true,
-        msg: "Design reject ho gaya. GD ko revision ke liye notify kar diya.",
+        msg: "Design rejected. GD has been notified for revision.",
         data: {
           projectId:     project._id,
           title:         project.title,

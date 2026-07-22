@@ -25,12 +25,12 @@ exports.submitForReview = async (req, res) => {
       return res.status(404).json({ success: false, msg: "Project not found" });
     }
 
-    // Sirf In Progress ya Revision status wala project submit ho sakta hai
+    // Only a project with In Progress or Revision status can be submitted
     const allowedStatuses = ["In Progress", "Revision"];
     if (!allowedStatuses.includes(project.status)) {
       return res.status(400).json({
         success: false,
-        msg: `Project status '${project.status}' hai — sirf 'In Progress' ya 'Revision' project submit ho sakta hai`
+        msg: `Project status is '${project.status}' — only 'In Progress' or 'Revision' projects can be submitted`
       });
     }
 
@@ -43,7 +43,7 @@ exports.submitForReview = async (req, res) => {
     if (!finalFile) {
       return res.status(400).json({
         success: false,
-        msg: "Pehle Final design file upload karo, phir Submit for Review karo"
+        msg: "Please upload the Final design file first, then Submit for Review"
       });
     }
 
@@ -63,8 +63,8 @@ exports.submitForReview = async (req, res) => {
       userId:    project.assignedBy,
       type:      "INFO",
       event:     "design_submitted_to_smm",
-      title:     "GD ne Design Submit Kiya — Review Karo",
-      message:   `"${project.title}" project ka design ready hai. Please review karke client ko bhejo ya revision request karo.`,
+      title:     "GD Submitted the Design — Review Needed",
+      message:   `The design for the "${project.title}" project is ready. Please review and send it to the client, or request a revision.`,
       projectId: project._id,
       templateData: {
         projectTitle: project.title
@@ -73,7 +73,7 @@ exports.submitForReview = async (req, res) => {
 
     return res.status(200).json({
       success: true,
-      msg: "Design SMM ko review ke liye bhej diya gaya. SMM approve karega tabhi client dekh sakega.",
+      msg: "Design sent to SMM for review. The client will be able to see it once SMM approves.",
       data: {
         projectId: project._id,
         title:     project.title,
@@ -122,7 +122,7 @@ exports.uploadDesignFile = async (req, res) => {
 
     return res.status(201).json({
       success: true,
-      msg:  `${fileType} v${version} upload ho gaya`,
+      msg:  `${fileType} v${version} uploaded successfully`,
       data: designFile
     });
 

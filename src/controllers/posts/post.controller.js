@@ -287,7 +287,7 @@
 //       const hasVideo = req.files?.some(f => f.mimetype.startsWith("video/"));
 //       if (!hasVideo) {
 //         cleanupTempFiles(req.files);
-//         return res.status(400).json({ success: false, msg: "YouTube ke liye video file required hai" });
+//         return res.status(400).json({ success: false, msg: "Video file is required for YouTube" });
 //       }
 //     }
 
@@ -685,7 +685,7 @@ exports.createPost = async (req, res) => {
       const hasVideo = req.files?.some(f => f.mimetype.startsWith("video/"));
       if (!hasVideo) {
         cleanupTempFiles(req.files);
-        return res.status(400).json({ success: false, msg: "YouTube ke liye video file required hai" });
+        return res.status(400).json({ success: false, msg: "Video file is required for YouTube" });
       }
     }
 

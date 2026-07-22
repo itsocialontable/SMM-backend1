@@ -136,7 +136,7 @@ exports.removeProfileImage = async (req, res) => {
     }
 
     if (!user.profileImage) {
-      return res.status(400).json({ success: false, msg: "Koi profile image nahi hai" });
+      return res.status(400).json({ success: false, msg: "No profile image found" });
     }
 
     if (user.profileImagePublicId) {

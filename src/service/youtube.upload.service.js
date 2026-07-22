@@ -43,7 +43,7 @@ status: {
   );
 
   const uploadUrl = initRes.headers.location;
-  if (!uploadUrl) throw new Error("YouTube upload URL nahi mila");
+  if (!uploadUrl) throw new Error("YouTube upload URL not received");
 
   // Step 2: Upload video bytes
   const fileBuffer = fs.readFileSync(videoFile.path);
@@ -57,7 +57,7 @@ status: {
   });
 
   const videoId = uploadRes.data?.id;
-  if (!videoId) throw new Error("YouTube video ID nahi mila upload ke baad");
+  if (!videoId) throw new Error("YouTube video ID not received after upload");
 
   return {
     videoId,

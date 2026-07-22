@@ -122,7 +122,7 @@ exports.loginUser = async (req, res) => {
     if (!email || !password || !role) {
       return res.status(400).json({
         success: false,
-        msg: "email, password aur role — teeno zaroori hain"
+        msg: "email, password and role — all three are required"
       });
     }
 
@@ -150,7 +150,7 @@ exports.loginUser = async (req, res) => {
       // match na kare, tab bhi yahi response milega.
       return res.status(404).json({
         success: false,
-        msg: "User not found. Email ya role galat hai."
+        msg: "User not found. Incorrect email or role."
       });
     }
 
