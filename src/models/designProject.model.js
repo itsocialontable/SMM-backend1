@@ -41,9 +41,25 @@ const designProjectSchema = new mongoose.Schema(
     assignedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User2" },
 
     title:       { type: String, required: true, trim: true },
+
+    // v22: designType ab MULTIPLE select ho sakta hai (pehle ek hi
+    // value select ho pati thi, ab array hai — SMM aur Admin dono
+    // ek se zyada design types ek project pe choose kar sakte hain).
+    // Enum me admin ke liye naye types (Website New/Rework, SMM, SEO,
+    // GMB, Product Shoot, Performance Marketing, Commercial Ads Shoot,
+    // Podcast) add kiye — purane SMM wale types (Social Post/Logo/
+    // Banner/etc.) bilkul waise hi hain, koi hataya nahi.
     designType:  {
-      type: String,
-      enum: ["Social Post","Logo","Banner","Brochure","Video Thumbnail","Story","Reel Cover","Other"],
+      type: [String],
+      enum: [
+        // ---- purane types (SMM) — waise hi hain ----
+        "Social Post", "Logo", "Banner", "Brochure",
+        "Video Thumbnail", "Story", "Reel Cover", "Other",
+        // ---- naye types (v22 — Admin ke liye add kiye) ----
+        "Website New", "Website Rework", "SMM", "SEO", "GMB",
+        "Product Shoot", "Performance Marketing",
+        "Commercial Ads Shoot", "Podcast"
+      ],
       required: true
     },
     description:    { type: String, default: "" },

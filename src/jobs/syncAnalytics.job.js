@@ -5,10 +5,13 @@
 //   karta hai. Pehle publish hote hi random mock numbers set ho jaate
 //   the aur kabhi refresh nahi hote the — ab ye job hi single source
 //   of truth hai analytics data ke liye.
+// UPDATED v21: Isi cycle me connected accounts (Facebook Page/Instagram
+//   Business) ka reach + profile views bhi refresh hota hai — dashboard
+//   "Total Reach" / "Profile Views" cards ke liye, real data.
 // ==========================================
 
 const cron = require("node-cron");
-const { syncAllPublishedPostsAnalytics } = require("../service/analyticsSync.service");
+const { syncAllPublishedPostsAnalytics, syncAllAccountInsights } = require("../service/analyticsSync.service");
 
 const syncAnalytics = () => {
 
@@ -17,6 +20,9 @@ const syncAnalytics = () => {
     try {
       console.log("📊 Analytics sync job started...");
       await syncAllPublishedPostsAnalytics();
+      // v21: connected accounts ka profile views/reach bhi isi cycle
+      // me refresh ho jaata hai — dashboard pe koi static number nahi.
+      await syncAllAccountInsights();
     } catch (error) {
       console.error("❌ Analytics sync job error:", error.message);
     }

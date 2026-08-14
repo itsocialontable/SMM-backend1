@@ -18,7 +18,11 @@ exports.createAgency = async (req, res) => {
     const {
       name, owner, email, aadharCard, panCard,
       websiteOrSocialLink, password, confirmPassword,
-      state, city, country, phoneNumber
+      state, city, country, phoneNumber,
+
+      // ✅ NEW: address + bank details — invoice generation ke liye
+      address,
+      bankName, ifsc, accountNumber, branch, accountType
     } = req.body;
 
     // ── Validation ──────────────────────────────────────────────────
@@ -59,6 +63,17 @@ exports.createAgency = async (req, res) => {
       city:                city                || "",
       country:             country             || "",
       phoneNumber:         phoneNumber         || "",
+
+      // ✅ NEW: address + bank details
+      address: address || "",
+      bankDetails: {
+        bankName:      bankName      || "",
+        ifsc:          ifsc          || "",
+        accountNumber: accountNumber || "",
+        branch:        branch        || "",
+        accountType:   accountType   || ""
+      },
+
       // ── Subscription defaults ──
       trialStartDate:     now,
       trialEndDate:       trialEndDate,

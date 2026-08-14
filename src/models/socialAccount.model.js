@@ -108,6 +108,30 @@ const socialAccountSchema = new mongoose.Schema(
     lastSyncAt: {
       type: Date,
     },
+
+    // v21: account-level real insights (Facebook Page / Instagram
+    // Business account) — dashboard "Profile Views" / "Total Reach"
+    // cards ke liye. syncAnalytics.job.js periodically ye refresh karta
+    // hai (dekho analyticsSync.service.js:syncAllAccountInsights).
+    // Real platform API data hai, kabhi hardcoded/mock nahi.
+    profileViews: {
+      type: Number,
+      default: 0,
+    },
+
+    accountReach: {
+      type: Number,
+      default: 0,
+    },
+
+    accountImpressions: {
+      type: Number,
+      default: 0,
+    },
+
+    lastInsightsSyncAt: {
+      type: Date,
+    },
   },
   {
     timestamps: true,

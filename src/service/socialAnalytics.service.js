@@ -12,6 +12,21 @@
 //     (read_insights) aur Page-level access chahiye hote hain.
 //   - YouTube stats function activate kiya — access_token (OAuth)
 //     se call hota hai, static API key ki zaroorat nahi.
+// UPDATED v21: Dashboard pe "Total Reach", "Total Impressions" aur
+//   "Profile Views" bhi ab REAL platform data se aate hain (pehle ye
+//   metrics track hi nahi hoti thi, sirf likes/comments/shares/views).
+//   - Post-level: reach + impressions ab har platform ke insights call
+//     se hi capture kiye jaate hain (jo call pehle se ho raha tha,
+//     value bas discard ho rahi thi — ab return karte hain).
+//   - Account-level (profile views): naya set of functions
+//     (fetchInstagramAccountInsights / fetchFacebookPageInsights) jo
+//     connected account/page ki khud ki insights fetch karte hain —
+//     ye syncAnalytics.job.js se periodically SocialAccount doc pe
+//     save hoti hai (dekho analyticsSync.service.js:syncAccountInsights).
+//   - Koi bhi metric jo actual API se na mile (permission na ho,
+//     ya platform support hi na kare — jaise YouTube pe "reach" jaisi
+//     koi cheez exist nahi karti standard Data API me) wahan 0 return
+//     hota hai, kabhi bhi random/hardcoded number nahi.
 // ==========================================
 
 const axios = require("axios");
@@ -20,6 +35,8 @@ const axios = require("axios");
 // postId format: "{page-id}_{post-id}" — jo publishToFacebook() se
 // milta hai aur post.results[].postId me already saved hota hai.
 exports.fetchFacebookPostInsights = async (accessToken, postId) => {
+  const stats = { likes: 0, comments: 0, shares: 0, views: 0, reach: 0, impressions: 0 };
+
   try {
     const res = await axios.get(
       `https://graph.facebook.com/v18.0/${postId}`,
@@ -32,18 +49,42 @@ exports.fetchFacebookPostInsights = async (accessToken, postId) => {
     );
 
     const data = res.data || {};
-
-    return {
-      likes:    data.likes?.summary?.total_count || 0,
-      comments: data.comments?.summary?.total_count || 0,
-      shares:   data.shares?.count || 0,
-      views:    0 // Facebook page-post ke liye views sirf video posts pe milte hain (insights alag call)
-    };
+    stats.likes    = data.likes?.summary?.total_count || 0;
+    stats.comments = data.comments?.summary?.total_count || 0;
+    stats.shares   = data.shares?.count || 0;
+    // views: Facebook page-post ke liye views sirf video posts pe milte hain (insights alag call, neeche)
 
   } catch (err) {
     console.log("Facebook Analytics Error:", err.response?.data || err.message);
-    return { likes: 0, comments: 0, shares: 0, views: 0 };
+    return stats;
   }
+
+  // Reach/Impressions — alag "insights" call (read_insights permission
+  // chahiye, isliye separate try/catch — na mile to basic counts (upar)
+  // valid rehte hain, sirf ye do 0 reh jaate hain).
+  try {
+    const insightsRes = await axios.get(
+      `https://graph.facebook.com/v18.0/${postId}/insights`,
+      {
+        params: {
+          metric: "post_impressions,post_impressions_unique,post_video_views",
+          access_token: accessToken
+        }
+      }
+    );
+    const values = insightsRes.data?.data || [];
+    const impressions = values.find(v => v.name === "post_impressions");
+    const reach        = values.find(v => v.name === "post_impressions_unique");
+    const videoViews    = values.find(v => v.name === "post_video_views");
+
+    stats.impressions = impressions?.values?.[0]?.value || 0;
+    stats.reach        = reach?.values?.[0]?.value || 0;
+    stats.views         = videoViews?.values?.[0]?.value || 0;
+  } catch (insightErr) {
+    console.log("Facebook insights (reach/impressions) error:", insightErr.response?.data?.error?.message || insightErr.message);
+  }
+
+  return stats;
 };
 
 // ================= INSTAGRAM (Media) =================
@@ -63,33 +104,42 @@ exports.fetchInstagramMediaInsights = async (accessToken, mediaId) => {
 
     const basic = basicRes.data || {};
     let views = 0;
+    let reach = 0;
+    let impressions = 0;
 
     // Reach/impressions/plays — separate "insights" call
     // (VIDEO/REELS -> "plays", IMAGE/CAROUSEL -> "impressions")
     try {
-      const metric = basic.media_type === "VIDEO" ? "plays,reach" : "impressions,reach";
+      const metric = basic.media_type === "VIDEO" ? "plays,reach,impressions" : "impressions,reach";
       const insightsRes = await axios.get(
         `https://graph.facebook.com/v18.0/${mediaId}/insights`,
         { params: { metric, access_token: accessToken } }
       );
       const values = insightsRes.data?.data || [];
       const playsOrImpressions = values.find(v => v.name === "plays" || v.name === "impressions");
-      views = playsOrImpressions?.values?.[0]?.value || 0;
+      const reachEntry         = values.find(v => v.name === "reach");
+      const impressionsEntry   = values.find(v => v.name === "impressions");
+
+      views       = playsOrImpressions?.values?.[0]?.value || 0;
+      reach       = reachEntry?.values?.[0]?.value || 0;
+      impressions = impressionsEntry?.values?.[0]?.value || (basic.media_type === "VIDEO" ? 0 : views);
     } catch (insightErr) {
       // Insights permission na ho to bas 0 rehne do, basic counts still valid hain
       console.log("Instagram insights (views) error:", insightErr.response?.data?.error?.message || insightErr.message);
     }
 
     return {
-      likes:    basic.like_count || 0,
-      comments: basic.comments_count || 0,
-      shares:   0, // Instagram Graph API shares count expose nahi karta
-      views
+      likes:       basic.like_count || 0,
+      comments:    basic.comments_count || 0,
+      shares:      0, // Instagram Graph API shares count expose nahi karta
+      views,
+      reach,
+      impressions
     };
 
   } catch (err) {
     console.log("Instagram Analytics Error:", err.response?.data || err.message);
-    return { likes: 0, comments: 0, shares: 0, views: 0 };
+    return { likes: 0, comments: 0, shares: 0, views: 0, reach: 0, impressions: 0 };
   }
 };
 
@@ -109,14 +159,91 @@ exports.fetchYouTubeVideoStats = async (accessToken, videoId) => {
     const stats = res.data?.items?.[0]?.statistics;
 
     return {
-      likes:    Number(stats?.likeCount || 0),
-      comments: Number(stats?.commentCount || 0),
-      shares:   0, // YouTube API shares count expose nahi karta
-      views:    Number(stats?.viewCount || 0)
+      likes:       Number(stats?.likeCount || 0),
+      comments:    Number(stats?.commentCount || 0),
+      shares:      0, // YouTube API shares count expose nahi karta
+      views:       Number(stats?.viewCount || 0),
+      // YouTube Data API "reach" jaisi koi cheez expose nahi karti
+      // (wo YouTube Analytics API me hoti hai, alag OAuth scope
+      // chahiye) — isliye impressions ke liye views hi closest real
+      // signal hai, reach abhi supported nahi (0, fake nahi banaya).
+      reach:       0,
+      impressions: Number(stats?.viewCount || 0)
     };
 
   } catch (err) {
     console.log("YouTube Analytics Error:", err.response?.data || err.message);
-    return { likes: 0, comments: 0, shares: 0, views: 0 };
+    return { likes: 0, comments: 0, shares: 0, views: 0, reach: 0, impressions: 0 };
+  }
+};
+
+// ================= FACEBOOK (Page — account level) =================
+// pageId = SocialAccount.accountId, accessToken = Page access token.
+// "Profile views" ke closest real Facebook Page metric "page_views_total"
+// hai — Page ke profile/about section kitni baar dekha gaya.
+exports.fetchFacebookPageInsights = async (accessToken, pageId) => {
+  try {
+    const res = await axios.get(
+      `https://graph.facebook.com/v18.0/${pageId}/insights`,
+      {
+        params: {
+          metric: "page_impressions,page_impressions_unique,page_views_total",
+          period: "day",
+          access_token: accessToken
+        }
+      }
+    );
+
+    const values = res.data?.data || [];
+    const sumAllPeriods = (name) => {
+      const entry = values.find(v => v.name === name);
+      if (!entry?.values?.length) return 0;
+      return entry.values.reduce((sum, v) => sum + (v.value || 0), 0);
+    };
+
+    return {
+      impressions:  sumAllPeriods("page_impressions"),
+      reach:        sumAllPeriods("page_impressions_unique"),
+      profileViews: sumAllPeriods("page_views_total")
+    };
+
+  } catch (err) {
+    console.log("Facebook Page insights error:", err.response?.data?.error?.message || err.message);
+    return { impressions: 0, reach: 0, profileViews: 0 };
+  }
+};
+
+// ================= INSTAGRAM (Business account — account level) =================
+// igUserId = SocialAccount.accountId (Instagram Business Account ID),
+// accessToken = Page access token (facebook login) ya IG token (direct login).
+exports.fetchInstagramAccountInsights = async (accessToken, igUserId) => {
+  try {
+    const res = await axios.get(
+      `https://graph.facebook.com/v18.0/${igUserId}/insights`,
+      {
+        params: {
+          metric: "reach,profile_views",
+          period: "day",
+          access_token: accessToken
+        }
+      }
+    );
+
+    const values = res.data?.data || [];
+    const sumAllPeriods = (name) => {
+      const entry = values.find(v => v.name === name);
+      if (!entry?.values?.length) return 0;
+      return entry.values.reduce((sum, v) => sum + (v.value || 0), 0);
+    };
+
+    return {
+      impressions:  0, // v21+ Graph API ne media-impressions hata diya, account-level "impressions" ab unsupported hai
+      reach:        sumAllPeriods("reach"),
+      profileViews: sumAllPeriods("profile_views")
+    };
+
+  } catch (err) {
+    console.log("Instagram account insights error:", err.response?.data?.error?.message || err.message);
+    return { impressions: 0, reach: 0, profileViews: 0 };
   }
 };

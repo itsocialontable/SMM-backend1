@@ -93,11 +93,16 @@ const postSchema = new mongoose.Schema(
         url:      String,
 
         // ---- v20: per-platform real analytics (Facebook/Instagram/YouTube) ----
+        // v21: reach + impressions add kiye (dashboard "Total Reach" /
+        // "Total Impressions" cards ke liye) — real API se aate hain,
+        // dekho socialAnalytics.service.js
         analytics: {
-          likes:    { type: Number, default: 0 },
-          comments: { type: Number, default: 0 },
-          shares:   { type: Number, default: 0 },
-          views:    { type: Number, default: 0 }
+          likes:       { type: Number, default: 0 },
+          comments:    { type: Number, default: 0 },
+          shares:      { type: Number, default: 0 },
+          views:       { type: Number, default: 0 },
+          reach:       { type: Number, default: 0 },
+          impressions: { type: Number, default: 0 }
         }
       }
     ],
@@ -118,10 +123,14 @@ const postSchema = new mongoose.Schema(
     processingLockedAt: { type: Date, default: null },
 
     // ================= ANALYTICS =================
-    likes:    { type: Number, default: 0 },
-    comments: { type: Number, default: 0 },
-    shares:   { type: Number, default: 0 },
-    views:    { type: Number, default: 0 },
+    likes:       { type: Number, default: 0 },
+    comments:    { type: Number, default: 0 },
+    shares:      { type: Number, default: 0 },
+    views:       { type: Number, default: 0 },
+    // v21: post-level totals (sum across platforms), same pattern as
+    // likes/comments/shares/views upar — dekho analyticsSync.service.js
+    reach:       { type: Number, default: 0 },
+    impressions: { type: Number, default: 0 },
 
     analyticsSource: {
       type: String,

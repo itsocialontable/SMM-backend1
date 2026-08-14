@@ -13,11 +13,23 @@
 //   "client": { id, name, companyName } bhi milta hai taaki UI ko
 //   pata chale ye kis client ka data hai. clientId na diya jaaye to
 //   pehle jaisa hi — SMM/agency ke SAARE clients ka combined data.
+// UPDATED v21: analytics block me ab totalReach, totalImpressions,
+//   totalEngagement aur totalProfileViews bhi milte hain — sab REAL
+//   data se (Post.reach/impressions jo analyticsSync.service.js real
+//   platform APIs se sync karta hai, aur SocialAccount.profileViews
+//   jo connected account ki khud ki insights se aata hai). Koi bhi
+//   value hardcoded/static nahi — account connect na ho ya insights
+//   permission na mile to genuinely 0 aayega, fake number kabhi nahi.
+//   - totalEngagement standard formula se compute hota hai (on the
+//     fly, DB me alag se store nahi kiya — hamesha likes+comments+
+//     shares ke current totals ke sync me rehta hai):
+//       totalEngagement = totalLikes + totalComments + totalShares
 // ==========================================
 
 const mongoose = require("mongoose");
-const Post   = require("../../models/post.model");
-const User2  = require("../../models/user2.model");
+const Post          = require("../../models/post.model");
+const User2          = require("../../models/user2.model");
+const SocialAccount  = require("../../models/socialAccount.model");
 const { validateClientForSmm } = require("../../utils/validateClientForSmm.util");
 
 exports.getOverview = async (req, res) => {
@@ -103,6 +115,16 @@ exports.getOverview = async (req, res) => {
 
           totalViews: {
             $sum: "$views"
+          },
+
+          // v21: real reach/impressions totals (dekho post.model.js
+          // + analyticsSync.service.js — real platform API data hai)
+          totalReach: {
+            $sum: "$reach"
+          },
+
+          totalImpressions: {
+            $sum: "$impressions"
           }
         }
       }
@@ -112,8 +134,38 @@ exports.getOverview = async (req, res) => {
       totalLikes: 0,
       totalComments: 0,
       totalShares: 0,
-      totalViews: 0
+      totalViews: 0,
+      totalReach: 0,
+      totalImpressions: 0
     };
+    delete totals._id; // aggregate group ka default _id field, response me nahi chahiye
+
+    // v21: Engagement ek standard derived metric hai — kisi field me
+    // alag se store nahi karte (taaki likes/comments/shares update hone
+    // par turant sync me rahe), yahin compute kar dete hain.
+    const totalEngagement = (totals.totalLikes || 0) + (totals.totalComments || 0) + (totals.totalShares || 0);
+
+    // ================= PROFILE VIEWS (account-level, real) =================
+    // Ye post-level metric nahi hai — connected account (Facebook Page /
+    // Instagram Business) ki khud ki insights hoti hai, isliye SocialAccount
+    // collection se aata hai, Post collection se nahi.
+    // NOTE: raw aggregate pipeline me Mongoose auto-cast nahi karta
+    // (jaisa upar $match: { user: userObjectId } me bhi kiya gaya hai),
+    // isliye yahan bhi explicit ObjectId cast zaroori hai.
+    const accountFilter = { user: userObjectId, isActive: true };
+    if (clientId) accountFilter.client = new mongoose.Types.ObjectId(clientId);
+
+    const accountTotals = await SocialAccount.aggregate([
+      { $match: accountFilter },
+      {
+        $group: {
+          _id: null,
+          totalProfileViews: { $sum: "$profileViews" }
+        }
+      }
+    ]);
+
+    const totalProfileViews = accountTotals[0]?.totalProfileViews || 0;
 
     // ================= PLATFORM-WISE BREAKDOWN =================
     // v20: har platform (facebook/instagram/youtube/etc.) ka apna
@@ -133,20 +185,38 @@ exports.getOverview = async (req, res) => {
       {
         $group: {
           _id: "$results.platform",
-          likes:    { $sum: { $ifNull: ["$results.analytics.likes", 0] } },
-          comments: { $sum: { $ifNull: ["$results.analytics.comments", 0] } },
-          shares:   { $sum: { $ifNull: ["$results.analytics.shares", 0] } },
-          views:    { $sum: { $ifNull: ["$results.analytics.views", 0] } },
-          posts:    { $sum: 1 }
+          likes:       { $sum: { $ifNull: ["$results.analytics.likes", 0] } },
+          comments:    { $sum: { $ifNull: ["$results.analytics.comments", 0] } },
+          shares:      { $sum: { $ifNull: ["$results.analytics.shares", 0] } },
+          views:       { $sum: { $ifNull: ["$results.analytics.views", 0] } },
+          // v21: reach/impressions bhi per-platform breakdown me
+          reach:       { $sum: { $ifNull: ["$results.analytics.reach", 0] } },
+          impressions: { $sum: { $ifNull: ["$results.analytics.impressions", 0] } },
+          posts:       { $sum: 1 }
         }
       },
       {
         $project: {
           _id: 0,
           platform: "$_id",
-          likes: 1, comments: 1, shares: 1, views: 1, posts: 1
+          likes: 1, comments: 1, shares: 1, views: 1, reach: 1, impressions: 1, posts: 1
         }
       },
+      { $sort: { platform: 1 } }
+    ]);
+
+    // v21: profile views bhi platform-wise (Facebook/Instagram) — same
+    // filter jo accountTotals ke liye use hua, bas group platform pe hai
+    const profileViewsByPlatform = await SocialAccount.aggregate([
+      { $match: accountFilter },
+      {
+        $group: {
+          _id: "$platform",
+          profileViews: { $sum: "$profileViews" },
+          reach:        { $sum: "$accountReach" }
+        }
+      },
+      { $project: { _id: 0, platform: "$_id", profileViews: 1, reach: 1 } },
       { $sort: { platform: 1 } }
     ]);
 
@@ -171,7 +241,12 @@ exports.getOverview = async (req, res) => {
 
         analytics: {
           ...totals,
-          byPlatform: platformBreakdown
+          // v21: engagement (likes+comments+shares) + account-level
+          // profile views — dono dynamic/real, dekho file header note
+          totalEngagement,
+          totalProfileViews,
+          byPlatform: platformBreakdown,
+          profileViewsByPlatform
         }
       }
     });

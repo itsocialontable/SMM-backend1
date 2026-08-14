@@ -3,6 +3,13 @@
 // UPDATED v20: createUser — new client fields added
 //              (serviceKey, gstNumber, address, projectTitle,
 //               duration, description, smmList, gdList)
+// UPDATED v21 (NEW): SMM ab client create kar sakta hai.
+//   - SMM sirf role="Client" hi create kar sakta hai (khud jaisa
+//     SMM/Graphic Designer nahi bana sakta) — hard block neeche.
+//   - agencyId ab Admin ke alawa SMM ke liye bhi sahi resolve hota
+//     hai (SMM ke apne User2 record se uska agencyId nikala jaata
+//     hai — same pattern jo resolveAgencyId() userManagement
+//     controller mein use hota hai).
 // ==========================================
 
 const User      = require("../../models/user2.model");
@@ -12,11 +19,21 @@ const sendEmail = require("../../utils/email.util");
 
 
 // =====================================
-// CREATE USER BY ADMIN
-// POST /api/user/create
+// CREATE USER BY ADMIN (ya SMM — sirf Client ke liye)
+// POST /api/user/create   (Admin — sab roles)
+// POST /api/smm/clients   (SMM — sirf Client role)
 // =====================================
 exports.createUser = async (req, res) => {
   try {
+    // ✅ NEW v21: SMM sirf Client create kar sake — SMM ya
+    // Graphic Designer nahi bana sakta, chahe body mein kuch bhi bheja ho.
+    if (req.user?.role === "SMM" && req.body.role !== "Client") {
+      return res.status(403).json({
+        success: false,
+        msg: "SMM can only create clients"
+      });
+    }
+
     let {
       name, email, password, role,
       profileImage, phoneNumber,
@@ -56,9 +73,23 @@ exports.createUser = async (req, res) => {
     const plainPassword  = password;
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // agencyId from the admin (Agency) creating the user
+    // agencyId resolve karo — creator ke role ke hisaab se
     // Agency model ka role hamesha "admin" hota hai — Admin model hata diya gaya hai
-    const agencyId = (req.user?.role === "admin" || req.user?.role === "Admin") ? req.user.id : null;
+    let agencyId = null;
+
+    if (req.user?.role === "admin" || req.user?.role === "Admin") {
+      // Agency khud client bana rahi hai — id hi agencyId hai
+      agencyId = req.user.id;
+    } else if (req.user?.role === "SMM") {
+      // ✅ NEW v21: SMM apni agency ke liye client bana raha hai —
+      // uska apna agencyId User2 record se nikalo (SMM._id != agencyId)
+      const me = await User.findById(req.user.id).select("agencyId").lean();
+      agencyId = me?.agencyId || null;
+
+      if (!agencyId) {
+        return res.status(400).json({ success: false, msg: "agencyId not found for this SMM user" });
+      }
+    }
 
     const user = await User.create({
       name, email, password: hashedPassword, role,

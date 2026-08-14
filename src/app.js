@@ -131,6 +131,14 @@ app.use("/api/admin/users", require("./routes/adminUserManagement.routes"));
 // ================= ADMIN DESIGN PROJECTS =================
 app.use("/api/admin/design-projects", require("./routes/adminDesignProject.routes"));
 
+// ================= ADMIN INVOICES (NEW ADD-ON) =================
+// Admin client add karte waqt (ya baad me) invoice generate kar sakta hai
+app.use("/api/admin/invoices", require("./routes/adminInvoice.routes"));
+
+// ================= ADMIN ANALYTICS (NEW ADD-ON) =================
+// Agency-wide analytics overview (weekly/monthly/yearly trend) + real revenue overview
+app.use("/api/admin/analytics", require("./routes/adminAnalytics.routes"));
+
 // ================= GRAPHIC DESIGNER =================
 app.use("/api/gd",      require("./routes/graphicDesigner.routes"));
 

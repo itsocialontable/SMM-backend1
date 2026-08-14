@@ -16,8 +16,14 @@ const { getValidAccessToken } = require("./tokenRefresh.service");
 const {
   fetchFacebookPostInsights,
   fetchInstagramMediaInsights,
-  fetchYouTubeVideoStats
+  fetchYouTubeVideoStats,
+  fetchFacebookPageInsights,
+  fetchInstagramAccountInsights
 } = require("./socialAnalytics.service");
+
+// Account-level (profile views/reach) insights sirf ye platforms support
+// karte hain abhi
+const ACCOUNT_INSIGHTS_PLATFORMS = ["facebook", "instagram"];
 
 // Sirf ye platforms abhi real-analytics support karte hain
 const SUPPORTED_PLATFORMS = ["facebook", "instagram", "youtube"];
@@ -88,19 +94,23 @@ async function syncPostAnalytics(post) {
     // single numbers jo purana analytics.controller.js already use karta hai)
     const totals = post.results.reduce(
       (acc, r) => {
-        acc.likes    += r.analytics?.likes    || 0;
-        acc.comments += r.analytics?.comments || 0;
-        acc.shares   += r.analytics?.shares   || 0;
-        acc.views    += r.analytics?.views    || 0;
+        acc.likes       += r.analytics?.likes       || 0;
+        acc.comments    += r.analytics?.comments    || 0;
+        acc.shares      += r.analytics?.shares      || 0;
+        acc.views       += r.analytics?.views       || 0;
+        acc.reach       += r.analytics?.reach       || 0;
+        acc.impressions += r.analytics?.impressions || 0;
         return acc;
       },
-      { likes: 0, comments: 0, shares: 0, views: 0 }
+      { likes: 0, comments: 0, shares: 0, views: 0, reach: 0, impressions: 0 }
     );
 
-    post.likes    = totals.likes;
-    post.comments = totals.comments;
-    post.shares   = totals.shares;
-    post.views    = totals.views;
+    post.likes       = totals.likes;
+    post.comments    = totals.comments;
+    post.shares      = totals.shares;
+    post.views       = totals.views;
+    post.reach       = totals.reach;
+    post.impressions = totals.impressions;
 
     post.analyticsSource     = "real";
     post.lastAnalyticsSyncAt = new Date();
@@ -110,6 +120,65 @@ async function syncPostAnalytics(post) {
   }
 
   return post;
+}
+
+/**
+ * Ek connected account (Facebook Page / Instagram Business account) ka
+ * account-level insights (reach + profile views) refresh karta hai.
+ * Post-level insights se ALAG hai — ye account ki khud ki insights hain
+ * (jaise "is hafte Page/profile kitni baar dekhi gayi"), post-wise
+ * likes/comments jaisi cheez nahi.
+ */
+async function syncAccountInsightsForAccount(account) {
+  try {
+    const accessToken = await getValidAccessToken(account);
+    let insights;
+
+    if (account.platform === "facebook") {
+      insights = await fetchFacebookPageInsights(accessToken, account.accountId);
+    } else if (account.platform === "instagram") {
+      insights = await fetchInstagramAccountInsights(accessToken, account.accountId);
+    } else {
+      return account;
+    }
+
+    account.profileViews       = insights.profileViews || 0;
+    account.accountReach       = insights.reach || 0;
+    account.accountImpressions = insights.impressions || 0;
+    account.lastInsightsSyncAt = new Date();
+
+    await account.save();
+  } catch (err) {
+    console.log(`⚠️ Account insights sync failed for ${account.platform} (${account._id}):`, err.message);
+  }
+
+  return account;
+}
+
+/**
+ * Saare active connected accounts (Facebook/Instagram) ka account-level
+ * insights (profile views/reach) refresh karta hai — cron job se call
+ * hota hai, dashboard "Profile Views" card isi data pe based hai.
+ */
+async function syncAllAccountInsights() {
+  const accounts = await SocialAccount
+    .find({ isActive: true, platform: { $in: ACCOUNT_INSIGHTS_PLATFORMS } })
+    .select("+accessToken +refreshToken");
+
+  console.log(`📊 Account insights sync: ${accounts.length} connected account(s) to refresh`);
+
+  let successCount = 0;
+  for (const account of accounts) {
+    try {
+      await syncAccountInsightsForAccount(account);
+      successCount++;
+    } catch (err) {
+      console.log(`❌ Account insights sync error for account ${account._id}:`, err.message);
+    }
+  }
+
+  console.log(`📊 Account insights sync done: ${successCount}/${accounts.length} account(s) updated`);
+  return { total: accounts.length, updated: successCount };
 }
 
 /**
@@ -143,4 +212,9 @@ async function syncAllPublishedPostsAnalytics(sinceDays = 60) {
   return { total: posts.length, updated: successCount };
 }
 
-module.exports = { syncPostAnalytics, syncAllPublishedPostsAnalytics };
+module.exports = {
+  syncPostAnalytics,
+  syncAllPublishedPostsAnalytics,
+  syncAccountInsightsForAccount,
+  syncAllAccountInsights
+};

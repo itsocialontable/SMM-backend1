@@ -13,6 +13,20 @@ const sendNotification    = require("../../utils/sendNotification.utils");
 
 
 // =====================================
+// HELPER: designType multiple-select normalize karo
+// UI se array bhej sakta hai ya comma-separated string — dono handle
+// hote hain (jaisa brandColors/referenceLinks ke liye already hota hai)
+// =====================================
+const normalizeDesignType = (designType) => {
+  if (!designType) return [];
+  const arr = Array.isArray(designType)
+    ? designType
+    : String(designType).split(",");
+  return arr.map((d) => String(d).trim()).filter(Boolean);
+};
+
+
+// =====================================
 // 1. CREATE PROJECT + GD ASSIGN KARO
 // POST /api/smm/design-projects
 // =====================================
@@ -26,7 +40,10 @@ exports.createProject = async (req, res) => {
       deadline, revisionLimit
     } = req.body;
 
-    if (!clientId || !designerId || !title || !designType || !deadline) {
+    // v22: designType ab multi-select array hai
+    const designTypeArr = normalizeDesignType(designType);
+
+    if (!clientId || !designerId || !title || !designTypeArr.length || !deadline) {
       cleanupTempFiles(req.files);
       return res.status(400).json({
         success: false,
@@ -75,7 +92,7 @@ exports.createProject = async (req, res) => {
       client:         clientId,
       designer:       designerId,
       assignedBy:     req.user.id,
-      title, designType,
+      title, designType: designTypeArr,
       description:    description    || "",
       targetAudience: targetAudience || "",
       brandColors: brandColors
@@ -214,6 +231,12 @@ exports.updateProject = async (req, res) => {
   try {
     const PROTECTED = ["client", "designer", "assignedBy", "statusHistory", "comments", "_id", "agencyId"];
     PROTECTED.forEach(f => delete req.body[f]);
+
+    // v22: designType ab array hai — agar UI ne comma-string bheji
+    // hai (jaise purana single-select form) to bhi normalize kar do
+    if (req.body.designType !== undefined) {
+      req.body.designType = normalizeDesignType(req.body.designType);
+    }
 
     const project = await DesignProject.findOneAndUpdate(
       { _id: req.params.id, assignedBy: req.user.id },

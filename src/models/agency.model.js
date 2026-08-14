@@ -28,6 +28,18 @@ const agencySchema = new mongoose.Schema(
     city:    { type: String, default: "" },
     country: { type: String, default: "" },
 
+    // ✅ NEW: Full postal address — invoice pe "FROM:" section mein use hoga
+    address: { type: String, default: "" },
+
+    // ✅ NEW: Bank details — invoice ke "PAYMENT INFO" section ke liye
+    bankDetails: {
+      bankName:      { type: String, default: "" },
+      ifsc:          { type: String, default: "" },
+      accountNumber: { type: String, default: "" },
+      branch:        { type: String, default: "" },
+      accountType:   { type: String, default: "" }
+    },
+
     // ================= STATUS =================
 
     isActive: { type: Boolean, default: true },
