@@ -42,7 +42,7 @@ exports.createProject = async (req, res) => {
     const agencyId = req.user.id;   // 🔒 admin khud agency hai
 
     const {
-      clientId, designerId, title, designType,
+      clientId, designerId, smmId, title, designType,
       description, targetAudience, brandColors,
       fontPreferences, referenceLinks, priority,
       deadline, revisionLimit
@@ -57,6 +57,19 @@ exports.createProject = async (req, res) => {
         success: false,
         msg: "clientId, designerId, title, designType, deadline are required"
       });
+    }
+
+    // ✅ NEW: agar Admin ne dropdown se ek SMM select ki hai, to us SMM ko
+    // validate karo (isi agency ka SMM hona chahiye) — ye project uski
+    // "My Projects" list/dashboard mein dikhega
+    let assignedByUser = req.user.id;   // default: koi SMM select nahi ki, admin khud "assignedBy"
+    if (smmId) {
+      const smmCheck = await User2.findOne({ _id: smmId, agencyId, role: "SMM" }).lean();
+      if (!smmCheck) {
+        cleanupTempFiles(req.files);
+        return res.status(400).json({ success: false, msg: "Selected SMM does not belong to your agency" });
+      }
+      assignedByUser = smmId;
     }
 
     // 🔒 Client aur Designer isi agency ke hone chahiye
@@ -87,7 +100,7 @@ exports.createProject = async (req, res) => {
       agencyId,
       client:         clientId,
       designer:       designerId,
-      assignedBy:     req.user.id,   // admin khud "assign karne wala" bhi hai
+      assignedBy:     assignedByUser,   // ✅ NEW: selected SMM ka ID (agar diya), warna admin khud
       title, designType: designTypeArr,
       description:    description    || "",
       targetAudience: targetAudience || "",
