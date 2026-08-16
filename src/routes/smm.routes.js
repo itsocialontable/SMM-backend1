@@ -23,7 +23,7 @@ const {
 
 // ✅ SMM ke apne profile ke liye (Client/GD/Admin jaisa dedicated route)
 const {
-  getProfile, updateProfile
+  getProfile, updateProfile, uploadProfileImage, removeProfileImage
 } = require("../controllers/users/profile.controller");
 
 // ✅ SMM ke liye client create karne ke liye
@@ -48,6 +48,8 @@ router.get("/dashboard", getSmmDashboard);
 // ── Profile (SMM apna profile dekh/edit kar sake) ────────────────────────────
 router.get("/profile", getProfile);
 router.put("/profile", updateProfile);
+router.post("/profile/image",   upload.single("profileImage"), uploadProfileImage);
+router.delete("/profile/image", removeProfileImage);
 
 // ── User Lists (SMM apni agency ke users dekh sake) ─────────────────────────
 // resolveAgencyId() SMM ke agencyId se sahi data nikalta hai

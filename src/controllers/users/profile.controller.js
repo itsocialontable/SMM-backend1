@@ -6,6 +6,9 @@
 
 const User2 = require("../../models/user2.model");
 const bcrypt = require("bcryptjs");
+const uploadToCloudinary = require("../../utils/uploadToCloudinary");
+const { cleanupTempFiles } = require("../../middleware/upload.middleware");
+const cloudinary = require("../../config/cloudinary.config");
 
 // ================= GET PROFILE =================
 exports.getProfile = async (req, res) => {
@@ -56,6 +59,78 @@ exports.updateProfile = async (req, res) => {
 
   } catch (error) {
     res.status(500).json({ msg: error.message });
+  }
+};
+
+// ================= UPLOAD PROFILE IMAGE =================
+// POST /api/smm/profile/image
+// form-data: profileImage (file)
+exports.uploadProfileImage = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, msg: "Image file required. Field name: profileImage" });
+    }
+
+    const user = await User2.findOne({ _id: req.user.id, isActive: true });
+    if (!user) {
+      cleanupTempFiles([req.file]);
+      return res.status(404).json({ success: false, msg: "User not found" });
+    }
+
+    if (user.profileImagePublicId) {
+      await cloudinary.uploader.destroy(user.profileImagePublicId);
+    }
+
+    const result = await uploadToCloudinary(
+      req.file.path,
+      req.file.mimetype,
+      "smm-uploads/smm-profiles"
+    );
+    cleanupTempFiles([req.file]);
+
+    user.profileImage         = result.secure_url;
+    user.profileImagePublicId = result.public_id;
+    await user.save();
+
+    return res.status(200).json({
+      success: true,
+      msg: "Profile image uploaded",
+      data: { profileImage: user.profileImage }
+    });
+
+  } catch (error) {
+    cleanupTempFiles([req.file]);
+    console.error("SMM UPLOAD PROFILE IMAGE ERROR =>", error);
+    return res.status(500).json({ success: false, msg: error.message });
+  }
+};
+
+// ================= REMOVE PROFILE IMAGE =================
+// DELETE /api/smm/profile/image
+exports.removeProfileImage = async (req, res) => {
+  try {
+    const user = await User2.findOne({ _id: req.user.id, isActive: true });
+    if (!user) {
+      return res.status(404).json({ success: false, msg: "User not found" });
+    }
+
+    if (!user.profileImage) {
+      return res.status(400).json({ success: false, msg: "No profile image found" });
+    }
+
+    if (user.profileImagePublicId) {
+      await cloudinary.uploader.destroy(user.profileImagePublicId);
+    }
+
+    user.profileImage         = null;
+    user.profileImagePublicId = null;
+    await user.save();
+
+    return res.status(200).json({ success: true, msg: "Profile image removed" });
+
+  } catch (error) {
+    console.error("SMM REMOVE PROFILE IMAGE ERROR =>", error);
+    return res.status(500).json({ success: false, msg: error.message });
   }
 };
 
