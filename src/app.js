@@ -286,15 +286,84 @@ app.get("/", (req, res) => {
 
 // ================= PRIVACY POLICY =================
 app.get("/privacy-policy", (req, res) => {
-  res.send(`<html><head><title>Privacy Policy - GrowthCraft SMM</title></head>
-    <body style="font-family:Arial;max-width:900px;margin:40px auto;">
-      <h1>Privacy Policy</h1><p>GrowthCraft SMM respects your privacy.</p>
-      <h2>Information We Collect</h2>
-      <p>We may collect account information and social media account data required to provide social media management services.</p>
-      <h2>How We Use Information</h2>
-      <p>Information is used for scheduling, publishing, analytics, reporting, and account management.</p>
-      <h2>Contact</h2><p>Email: it.growthcraft360@gmail.com</p>
-    </body></html>`);
+  res.send(`<!DOCTYPE html>
+<html><head><title>Privacy Policy - SocialFlow Pro (Social On Table)</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  body{font-family:Arial,sans-serif;max-width:850px;margin:40px auto;padding:0 20px;line-height:1.7;color:#222}
+  h1{color:#111}
+  h2{color:#1a1a2e;margin-top:32px}
+  .updated{color:#666;font-size:14px}
+</style></head>
+<body>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: August 2026</p>
+
+  <p>SocialFlow Pro (operated by Social On Table, "we", "us", "our") is a social media
+  management platform that allows social media agencies and their team members to
+  connect, schedule, and publish content to their clients' social media accounts
+  (including Facebook, Instagram, Threads, and YouTube) on the clients' behalf.</p>
+
+  <h2>1. Information We Collect</h2>
+  <p>When you connect a social media account (Facebook, Instagram, Threads, YouTube) to
+  our platform, we collect and store:</p>
+  <ul>
+    <li>Basic profile information (account name, username, profile picture)</li>
+    <li>Access tokens issued by the platform, used to publish content on your behalf</li>
+    <li>Content you create and publish through our platform (text, images, videos)</li>
+    <li>Engagement and performance data (likes, comments, shares, reach, impressions,
+        profile views) for posts published through our platform</li>
+    <li>Account information you provide when signing up (name, email, phone number)</li>
+  </ul>
+
+  <h2>2. How We Use This Information</h2>
+  <p>We use the information above strictly to provide our service, including:</p>
+  <ul>
+    <li>Publishing and scheduling posts, reels, and carousels on your connected accounts</li>
+    <li>Displaying performance analytics (likes, comments, reach, engagement) back to
+        you and your team inside the platform</li>
+    <li>Managing your agency's clients, team members, and their connected accounts</li>
+    <li>Sending account-related notifications (e.g. project updates, post status)</li>
+  </ul>
+  <p>We do not sell your data or your clients' social media data to third parties, and
+  we do not use it for advertising purposes.</p>
+
+  <h2>3. Data Retention &amp; Deletion</h2>
+  <p>We retain connected-account data and access tokens only for as long as the account
+  remains connected to our platform. You (or your agency admin) can disconnect any
+  social media account at any time from within the platform, which immediately revokes
+  our access and deletes the stored access token. You may also request full deletion of
+  your account and associated data at any time by contacting us at the email below.</p>
+
+  <h2>4. Data Sharing</h2>
+  <p>We do not share your data with third parties except: (a) the social media platforms
+  themselves (Meta, YouTube) as required to publish content and retrieve analytics on
+  your behalf, and (b) service providers who help us operate our infrastructure (e.g.
+  cloud hosting, email delivery), under confidentiality obligations.</p>
+
+  <h2>5. Data Security</h2>
+  <p>We implement reasonable administrative, technical, and physical safeguards
+  (including encrypted storage of access tokens) to protect your information from
+  unauthorised access, alteration, disclosure, or destruction.</p>
+
+  <h2>6. Your Rights</h2>
+  <p>You may access, correct, or request deletion of your personal data and connected
+  account data at any time by contacting us using the details below.</p>
+
+  <h2>7. Children's Privacy</h2>
+  <p>Our platform is not directed at individuals under the age of 18. We do not
+  knowingly collect personal information from children.</p>
+
+  <h2>8. Changes to This Policy</h2>
+  <p>We may update this Privacy Policy from time to time. The updated version will be
+  posted on this page with a revised "Last updated" date.</p>
+
+  <h2>9. Contact Us</h2>
+  <p>If you have any questions about this Privacy Policy or how we handle your data,
+  please contact us:</p>
+  <p>Email: <a href="mailto:info@socialontable.com">info@socialontable.com</a><br>
+  Phone: +91 8619830626</p>
+</body></html>`);
 });
 
 // ================= TERMS =================
