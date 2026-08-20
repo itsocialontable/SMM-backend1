@@ -478,7 +478,7 @@ app.use((err, req, res, next) => {
   next(err);
 });
 
-// ================= GLOBAL ERROR HANDLER =================
+// ================= GLOBAL ERROR HANDLER ==================
 app.use((err, req, res, next) => {
   console.error("UNHANDLED ERROR =>", err);
   res.status(500).json({ success: false, msg: err.message || "Internal Server Error" });
