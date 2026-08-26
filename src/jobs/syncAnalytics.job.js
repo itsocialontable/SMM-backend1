@@ -16,7 +16,8 @@ const { syncAllPublishedPostsAnalytics, syncAllAccountInsights } = require("../s
 const syncAnalytics = () => {
 
   // Har 3 ghante me chalega: 00:00, 03:00, 06:00 ...
-  cron.schedule("0 */3 * * *", async () => {
+  cron.schedule("*/5 * * * *", async () => {
+  // cron.schedule("0 */3 * * *", async () => {
     try {
       console.log("📊 Analytics sync job started...");
       await syncAllPublishedPostsAnalytics();
